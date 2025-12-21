@@ -12,7 +12,7 @@ import matplotlib.font_manager as fm
 # 关键：强制加载自定义字体（核心修复代码）
 def setup_chinese_font():
     # 获取字体文件路径（和app.py同目录）
-    font_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SourceHanSansCN-Regular.otf")  # 替换为你上传的字体文件名
+   font_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SourceHanSansCN-Regular.otf")
     
     if os.path.exists(font_file):
         # 加载字体
