@@ -7,6 +7,8 @@ from sklearn.linear_model import LinearRegression, RANSACRegressor
 import warnings
 import os
 import requests
+from collections import Counter
+import re
 
 # 设置中文显示
 plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -619,6 +621,120 @@ try:
                     st.write('⚠️ 加入评论数量后，模型预测能力提升不明显')
     except Exception as e:
         st.error(f'进行回归分析时发生错误：{str(e)}')
+        st.write('请检查数据格式或尝试调整参数。')
+    
+    # 典型评论展示
+    st.subheader('典型评论展示')
+    
+    try:
+        if filtered_comments.empty:
+            st.warning('没有可用的评论数据。')
+        else:
+            # 获取积极和消极评论
+            positive_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == '积极'].sort_values('llm_sentiment_score', ascending=False)
+            negative_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == '消极'].sort_values('llm_sentiment_score', ascending=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("### 🟢 积极评论（情感得分最高）")
+                
+                # 显示前5条积极评论
+                for i, (_, row) in enumerate(positive_comments.head(5).iterrows()):
+                    st.write(f"**评论 {i+1}** (得分: {row['llm_sentiment_score']:.3f})")
+                    st.write(f"{row['combined_text']}")
+                    st.write(f"*发布时间: {row['post_publish_time'].strftime('%Y-%m-%d %H:%M')}*")
+                    st.write("---")
+            
+            with col2:
+                st.write("### 🔴 消极评论（情感得分最低）")
+                
+                # 显示前5条消极评论
+                for i, (_, row) in enumerate(negative_comments.head(5).iterrows()):
+                    st.write(f"**评论 {i+1}** (得分: {row['llm_sentiment_score']:.3f})")
+                    st.write(f"{row['combined_text']}")
+                    st.write(f"*发布时间: {row['post_publish_time'].strftime('%Y-%m-%d %H:%M')}*")
+                    st.write("---")
+            
+            # 情感关键词分析
+            st.write("### 情感关键词分析")
+            
+            # 提取积极和消极评论中的关键词
+            positive_text = " ".join(positive_comments['combined_text'].tolist())
+            negative_text = " ".join(negative_comments['combined_text'].tolist())
+            
+            # 简单的关键词提取（基于词频）
+            from collections import Counter
+            import re
+            
+            # 中文分词简单处理（按字符分割）
+            def extract_keywords(text, top_n=10):
+                # 移除标点符号和数字
+                text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z]', ' ', text)
+                # 分割成单词
+                words = text.split()
+                # 过滤掉单字符和常见停用词
+                stop_words = ['的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这']
+                words = [word for word in words if len(word) > 1 and word not in stop_words]
+                # 统计词频
+                word_count = Counter(words)
+                return word_count.most_common(top_n)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**积极评论关键词**")
+                pos_keywords = extract_keywords(positive_text)
+                for word, count in pos_keywords:
+                    st.write(f"- {word}: {count}次")
+            
+            with col2:
+                st.write("**消极评论关键词**")
+                neg_keywords = extract_keywords(negative_text)
+                for word, count in neg_keywords:
+                    st.write(f"- {word}: {count}次")
+            
+            # 情感随时间变化
+            st.write("### 情感随时间变化")
+            
+            # 按日期计算平均情感得分
+            daily_sentiment_trend = filtered_comments.groupby(filtered_comments['post_publish_time'].dt.date)['llm_sentiment_score'].mean()
+            
+            fig, ax = plt.subplots(figsize=(12, 6))
+            daily_sentiment_trend.plot(ax=ax, marker='o', linestyle='-', linewidth=2, markersize=5)
+            
+            # 添加零线
+            ax.axhline(y=0, color='red', linestyle='--', alpha=0.7)
+            
+            # 设置图表标题和标签
+            ax.set_title('每日平均情感得分变化趋势', fontsize=14)
+            ax.set_xlabel('日期', fontsize=12)
+            ax.set_ylabel('平均情感得分', fontsize=12)
+            
+            # 添加网格线
+            ax.grid(True, alpha=0.3)
+            
+            # 调整日期标签
+            plt.xticks(rotation=45, fontsize=10)
+            
+            # 调整布局
+            plt.tight_layout()
+            
+            # 显示图表
+            st.pyplot(fig)
+            
+            # 显示统计信息
+            avg_sentiment = daily_sentiment_trend.mean()
+            max_sentiment_date = daily_sentiment_trend.idxmax()
+            min_sentiment_date = daily_sentiment_trend.idxmin()
+            
+            st.write(f"📊 情感趋势统计：")
+            st.write(f"- 平均情感得分：{avg_sentiment:.4f}")
+            st.write(f"- 最积极日期：{max_sentiment_date}（得分：{daily_sentiment_trend[max_sentiment_date]:.4f}）")
+            st.write(f"- 最消极日期：{min_sentiment_date}（得分：{daily_sentiment_trend[min_sentiment_date]:.4f}）")
+            
+    except Exception as e:
+        st.error(f'展示典型评论时发生错误：{str(e)}')
         st.write('请检查数据格式或尝试调整参数。')
 
 except Exception as e:
