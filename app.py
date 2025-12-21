@@ -9,31 +9,41 @@ import os
 from matplotlib.font_manager import FontProperties  # 导入字体管理
 import matplotlib.font_manager as fm
 
+# 定义全局字体对象
+font_prop = None
+
 def setup_chinese_font():
+    global font_prop  # 声明使用全局变量
     font_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SourceHanSansSC-Regular.otf")
     
     if os.path.exists(font_file):
         font_prop = FontProperties(fname=font_file)
+        # 全局设置字体
         plt.rcParams["font.family"] = font_prop.get_name()
-        # 替换无效的"axes.titlefont"，改用有效参数
         plt.rcParams["axes.titlesize"] = 14  # 标题大小
         plt.rcParams["axes.labelsize"] = 12  # 标签大小
         plt.rcParams["axes.labelweight"] = "bold"
         plt.rcParams["xtick.labelsize"] = 10
         plt.rcParams["ytick.labelsize"] = 10
-        plt.rcParams["axes.unicode_minus"] = False
-        sns.set(font=font_prop.get_name())
+        plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
+        sns.set(font=font_prop.get_name())  # Seaborn字体设置
         st.success("已加载中文字体")
     else:
         st.error(f"未找到字体文件：{font_file}")
-# 在setup_chinese_font函数前添加
+        # 备用字体设置
+        plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        font_prop = FontProperties(family='WenQuanYi Micro Hei')
+
+# 打印当前目录文件，验证字体文件是否存在
 st.write("当前目录文件：", os.listdir())
 # 调用字体设置函数
 setup_chinese_font()
 
+warnings.filterwarnings('ignore')
+
 # 加载情感词典
 @st.cache_data
-
 def load_sentiment_dictionaries():
     """
     加载用户提供的情感词典
@@ -124,9 +134,6 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     filtered_comments['combined_text'] = filtered_comments['post_title']
     
     # 过滤无效评论内容
-    # 使用正则表达式一次性匹配所有无效模式，提高效率
-    # 只过滤真正无意义的内容，如重复的图片/转发和过度重复的标点符号
-    # 不再过滤单独的"图片"或"转发"，因为它们可能出现在有意义的评论中
     invalid_pattern = r'(图片图片|转发转发|^[!！]{5,}$|^[?？]{5,}$|^\.{5,}$|^\s*$)'
     filtered_comments = filtered_comments[~filtered_comments['combined_text'].str.contains(invalid_pattern, na=False, regex=True)]
     
@@ -134,20 +141,18 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     positive_words, negative_words = load_sentiment_dictionaries()
     
     # 应用基于词典的情感分析
-    # 创建新的情感标签和得分列
     sentiment_results = filtered_comments['combined_text'].apply(
         lambda x: lexicon_based_sentiment_analysis(x, positive_words, negative_words)
     )
     
-    # 将结果拆分为情感标签和情感得分
+    # 将结果拆分为情感标签和得分列
     filtered_comments['llm_sentiment_label'] = sentiment_results.str[0]
     filtered_comments['llm_sentiment_score'] = sentiment_results.str[1]
-    filtered_comments['ensemble_sentiment_score'] = sentiment_results.str[1]  # 使用相同的得分作为融合得分
-    filtered_comments['lexicon_sentiment'] = sentiment_results.str[1]  # 更新词典情感得分
+    filtered_comments['ensemble_sentiment_score'] = sentiment_results.str[1]
+    filtered_comments['lexicon_sentiment'] = sentiment_results.str[1]
     
-    # 文本长度过滤：降低最小长度限制，提高最大长度限制
+    # 文本长度过滤
     filtered_comments['text_length'] = filtered_comments['combined_text'].str.len()
-    # 最小长度限制为1个字符，最大长度限制放宽到1000
     filtered_comments = filtered_comments[(filtered_comments['text_length'] >= 1) & (filtered_comments['text_length'] <= text_length_limit)]
     
     # 按日期聚合情感数据
@@ -161,7 +166,7 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     daily_sentiment.columns = ['date', 'ensemble_mean', 'ensemble_median', 'ensemble_std', 'comment_count', 'llm_mean', 'lexicon_mean']
     daily_sentiment['date'] = pd.to_datetime(daily_sentiment['date'])
     
-    # 合并价格数据（使用左连接，保留所有价格日期）
+    # 合并价格数据
     merged_df = pd.merge(price_df, daily_sentiment, left_on='trade_date', right_on='date', how='left')
     
     # 处理没有评论的日期（填充NaN值）
@@ -171,8 +176,6 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     merged_df['ensemble_std'] = merged_df['ensemble_std'].fillna(0)
     merged_df['llm_mean'] = merged_df['llm_mean'].fillna(0)
     merged_df['lexicon_mean'] = merged_df['lexicon_mean'].fillna(0)
-    
-    # 确保std列不为NaN（如果所有值相同，std会是NaN）
     merged_df['ensemble_std'] = merged_df['ensemble_std'].fillna(0)
     
     # 添加滞后情感数据
@@ -180,7 +183,6 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
         merged_df['ensemble_mean_lag'] = merged_df['ensemble_mean'].shift(lag_days)
         merged_df['comment_count_lag'] = merged_df['comment_count'].shift(lag_days)
         merged_df['ensemble_std_lag'] = merged_df['ensemble_std'].shift(lag_days)
-        # 填充滞后导致的NaN值，而不是删除它们
         merged_df['ensemble_mean_lag'] = merged_df['ensemble_mean_lag'].fillna(0)
         merged_df['comment_count_lag'] = merged_df['comment_count_lag'].fillna(0)
         merged_df['ensemble_std_lag'] = merged_df['ensemble_std_lag'].fillna(0)
@@ -193,12 +195,12 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     return merged_df, filtered_comments
 
 # 侧边栏：股票选择（固定为东方财富）
-st.sidebar.subheader('股票选择')
+st.sidebar.subheader('股票选择', fontproperties=font_prop)
 stock_code = st.sidebar.selectbox('选择股票代码', ['300059'], index=0)
 stock_name = '东方财富'
 
 # 侧边栏：参数调整
-st.sidebar.subheader('参数调整')
+st.sidebar.subheader('参数调整', fontproperties=font_prop)
 
 # 使用session_state管理参数状态
 if 'text_length' not in st.session_state:
@@ -234,7 +236,7 @@ try:
     merged_df, filtered_comments = process_data(comments_df, price_df, text_length, window_size, lag_days)
     
     # 数据质量检查
-    st.subheader('数据质量检查')
+    st.subheader('数据质量检查', fontproperties=font_prop)
     
     # 检查评论数量
     total_comments = len(comments_df)
@@ -262,7 +264,7 @@ try:
         st.write(f'- 数据日期范围：{date_range}')
     
     # 显示评论数量随时间的变化
-    st.subheader('评论数量随时间变化')
+    st.subheader('评论数量随时间变化', fontproperties=font_prop)
     
     try:
         # 按日期分组并计算评论数量
@@ -278,21 +280,22 @@ try:
             
             # 添加每日评论数量标签
             for x, y in zip(daily_comments.index, daily_comments.values):
-                ax.text(x, y + 0.5, str(y), ha='center', va='bottom', fontsize=9)
+                ax.text(x, y + 0.5, str(y), ha='center', va='bottom', fontsize=9, fontproperties=font_prop)
             
-            # 设置图表标题和标签
-            ax.set_title('每日评论数量变化趋势', fontsize=14)
-            ax.set_xlabel('日期', fontsize=12)
-            ax.set_ylabel('评论数量', fontsize=12)
+            # 设置图表标题和标签（显式指定字体）
+            ax.set_title('每日评论数量变化趋势', fontsize=14, fontproperties=font_prop)
+            ax.set_xlabel('日期', fontsize=12, fontproperties=font_prop)
+            ax.set_ylabel('评论数量', fontsize=12, fontproperties=font_prop)
             
-            # 调整Y轴范围，确保所有点都能显示
+            # 调整Y轴范围
             ax.set_ylim(0, daily_comments.max() * 1.1)
             
             # 添加网格线
             ax.grid(True, alpha=0.3)
             
             # 调整日期标签
-            plt.xticks(rotation=45, fontsize=10)
+            plt.xticks(rotation=45, fontsize=10, fontproperties=font_prop)
+            plt.yticks(fontproperties=font_prop)
             
             # 计算统计信息
             avg_daily = daily_comments.mean()
@@ -301,10 +304,13 @@ try:
             
             # 在图表中添加统计信息
             stats_text = f'平均日评论数: {avg_daily:.1f}\n最高日评论数: {max_daily}\n最低日评论数: {min_daily}'
-            ax.text(0.02, 0.95, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8), fontsize=10)
+            ax.text(0.02, 0.95, stats_text, transform=ax.transAxes, 
+                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8), 
+                    fontsize=10, fontproperties=font_prop)
         else:
-            ax.set_title('暂无评论数据', fontsize=14)
-            ax.text(0.5, 0.5, '没有足够的评论数据来绘制趋势图', transform=ax.transAxes, ha='center', va='center', fontsize=12)
+            ax.set_title('暂无评论数据', fontsize=14, fontproperties=font_prop)
+            ax.text(0.5, 0.5, '没有足够的评论数据来绘制趋势图', transform=ax.transAxes, 
+                    ha='center', va='center', fontsize=12, fontproperties=font_prop)
         
         # 调整布局
         plt.tight_layout()
@@ -327,15 +333,14 @@ try:
         st.write('请检查数据格式或尝试调整参数。')
     
     # 显示情感分析结果
-    st.subheader('情感分析结果')
+    st.subheader('情感分析结果', fontproperties=font_prop)
     
     col1, col2 = st.columns(2)
     
     with col1:
         # LLM情感标签分布
-        st.write('### 情感标签分布')
+        st.write('### 情感标签分布', fontproperties=font_prop)
         try:
-            # 检查情感标签列是否存在且非空
             if 'llm_sentiment_label' in comments_df.columns:
                 sentiment_counts = comments_df['llm_sentiment_label'].value_counts()
                 
@@ -346,7 +351,7 @@ try:
                     # 设置饼图颜色
                     colors = ['#4caf50' if label == '积极' else '#ff9800' if label == '中性' else '#f44336' for label in sentiment_counts.index]
                     
-                    # 绘制饼图
+                    # 绘制饼图（显式指定字体）
                     patches, texts, autotexts = ax.pie(
                         sentiment_counts.values, 
                         labels=sentiment_counts.index, 
@@ -354,16 +359,16 @@ try:
                         startangle=90, 
                         colors=colors, 
                         wedgeprops={'edgecolor': 'white', 'linewidth': 1}, 
-                        textprops={'fontsize': 12}
+                        textprops={'fontsize': 12, 'fontproperties': font_prop}
                     )
                     
-                    # 设置百分比标签颜色和大小
+                    # 设置百分比标签
                     for autotext in autotexts:
                         autotext.set_color('white')
                         autotext.set_fontsize(11)
                     
                     # 设置标题
-                    ax.set_title('LLM情感标签分布', fontsize=14)
+                    ax.set_title('LLM情感标签分布', fontsize=14, fontproperties=font_prop)
                     
                     # 确保饼图是圆形
                     ax.axis('equal')
@@ -384,9 +389,8 @@ try:
     
     with col2:
         # 融合情感得分分布
-        st.write('### 情感得分分布')
+        st.write('### 情感得分分布', fontproperties=font_prop)
         try:
-            # 检查情感得分列是否存在
             if 'ensemble_sentiment_score' in comments_df.columns:
                 # 计算统计信息
                 mean_score = comments_df['ensemble_sentiment_score'].mean()
@@ -410,16 +414,20 @@ try:
                 ax.axvline(mean_score, color='red', linestyle='--', label=f'均值: {mean_score:.2f}')
                 ax.axvline(median_score, color='green', linestyle='--', label=f'中位数: {median_score:.2f}')
                 
-                # 设置图表标题和标签
-                ax.set_title('融合情感得分分布', fontsize=14)
-                ax.set_xlabel('情感得分', fontsize=12)
-                ax.set_ylabel('评论数量', fontsize=12)
+                # 设置图表标题和标签（显式指定字体）
+                ax.set_title('融合情感得分分布', fontsize=14, fontproperties=font_prop)
+                ax.set_xlabel('情感得分', fontsize=12, fontproperties=font_prop)
+                ax.set_ylabel('评论数量', fontsize=12, fontproperties=font_prop)
                 
                 # 添加网格线
                 ax.grid(True, alpha=0.3)
                 
-                # 添加图例
-                ax.legend()
+                # 添加图例（显式指定字体）
+                ax.legend(prop=font_prop)
+                
+                # 调整刻度字体
+                plt.xticks(fontproperties=font_prop)
+                plt.yticks(fontproperties=font_prop)
                 
                 # 调整布局
                 plt.tight_layout()
@@ -440,24 +448,20 @@ try:
             st.error(f'绘制情感得分分布图时发生错误：{str(e)}')
     
     # 显示平均情感与次日收益率的关系
-    st.subheader('情感与收益率关系分析')
+    st.subheader('情感与收益率关系分析', fontproperties=font_prop)
     
     try:
-        # 直接使用merged_df，因为它已经在process_data函数中定义
         if merged_df.empty:
             st.warning('没有可用的数据进行分析。')
         else:
-            # 检查数据是否足够进行分析（至少1个样本）
             if len(merged_df) < 1:
                 st.warning('数据严重不足，仅显示基本数据概览。')
-                
-                # 显示基本数据信息
                 st.write(f'数据日期范围：{merged_df["trade_date"].min().strftime("%Y-%m-%d")} 至 {merged_df["trade_date"].max().strftime("%Y-%m-%d")}')
                 st.write(f'有效交易日数量：{len(merged_df)} 个')
                 st.write(f'平均情感得分：{merged_df["ensemble_mean"].mean():.4f}')
                 st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
             else:
-                # 即使数据有限，也尝试显示基本散点图
+                # 创建散点图
                 fig, ax = plt.subplots(figsize=(12, 6))
                 
                 if lag_days > 0:
@@ -473,37 +477,38 @@ try:
                 
                 if len(filtered_x) < 1:
                     st.warning(f'有效样本不足（{len(filtered_x)}个样本），仅显示基本图表。')
-                    ax.text(0.5, 0.5, f'仅找到{len(filtered_x)}个有效样本点', transform=ax.transAxes, ha='center', va='center', fontsize=12)
-                    ax.set_title('数据不足', fontsize=14)
+                    ax.text(0.5, 0.5, f'仅找到{len(filtered_x)}个有效样本点', transform=ax.transAxes, 
+                            ha='center', va='center', fontsize=12, fontproperties=font_prop)
+                    ax.set_title('数据不足', fontsize=14, fontproperties=font_prop)
                 else:
                     # 根据情感得分设置不同颜色
                     colors = ['red' if s < -0.1 else 'green' if s > 0.1 else 'blue' for s in filtered_x]
                     ax.scatter(filtered_x, filtered_y, c=colors, alpha=0.5)
-                    ax.set_title(f'平均情感得分与次日收益率关系 (滞后{lag_days}天)', fontsize=14)
-                    ax.set_xlabel(f'平均情感得分(滞后{lag_days}天)' if lag_days > 0 else '平均情感得分', fontsize=12)
-                    ax.set_ylabel('次日收益率 (%)', fontsize=12)
+                    ax.set_title(f'平均情感得分与次日收益率关系 (滞后{lag_days}天)', fontsize=14, fontproperties=font_prop)
+                    ax.set_xlabel(f'平均情感得分(滞后{lag_days}天)' if lag_days > 0 else '平均情感得分', fontsize=12, fontproperties=font_prop)
+                    ax.set_ylabel('次日收益率 (%)', fontsize=12, fontproperties=font_prop)
                     ax.grid(True, alpha=0.3)
+                    
+                    # 调整刻度字体
+                    plt.xticks(fontproperties=font_prop)
+                    plt.yticks(fontproperties=font_prop)
                     
                     # 尝试简单的线性回归
                     try:
                         if len(filtered_x) >= 2:
-                            # 使用单变量回归
                             X_simple = filtered_x.values.reshape(-1, 1)
                             y_simple = filtered_y.values
+                            model = LinearRegression()
+                            model.fit(X_simple, y_simple)
+                            r2_score = model.score(X_simple, y_simple)
                             
-                            # 仅使用至少2个样本进行简单回归
-                            if len(X_simple) >= 2:
-                                model = LinearRegression()
-                                model.fit(X_simple, y_simple)
-                                r2_score = model.score(X_simple, y_simple)
-                                
-                                # 绘制回归线
-                                x_line = np.linspace(filtered_x.min(), filtered_x.max(), 100).reshape(-1, 1)
-                                y_line = model.predict(x_line)
-                                ax.plot(x_line, y_line, color='red', label=f'简单回归线 (R²={r2_score:.3f})')
-                                ax.legend(fontsize=10)
+                            # 绘制回归线
+                            x_line = np.linspace(filtered_x.min(), filtered_x.max(), 100).reshape(-1, 1)
+                            y_line = model.predict(x_line)
+                            ax.plot(x_line, y_line, color='red', label=f'简单回归线 (R²={r2_score:.3f})')
+                            ax.legend(prop=font_prop)
                     except Exception as e:
-                        pass  # 回归失败不影响图表显示
+                        pass
                 
                 plt.tight_layout()
                 st.pyplot(fig)
@@ -516,19 +521,17 @@ try:
                 st.write('- 红色线：简单回归线 (如适用)')
                 
                 # 显示基本统计信息
-                st.subheader('基本统计信息')
+                st.subheader('基本统计信息', fontproperties=font_prop)
                 st.write(f'总交易日数量：{len(merged_df)} 个')
                 st.write(f'有评论的交易日数量：{sum(merged_df["comment_count"] > 0)} 个')
                 st.write(f'平均每日评论数：{merged_df["comment_count"].mean():.2f} 条')
                 st.write(f'平均情感得分：{merged_df["ensemble_mean"].mean():.4f}')
                 st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
                 
-                # 如果数据足够，尝试更详细的分析
+                # 详细回归分析
                 if len(merged_df) >= 3:
                     try:
-                        # 准备回归数据
                         if lag_days > 0:
-                            # 确保滞后列存在
                             required_cols = ['ensemble_mean_lag', 'comment_count_lag', 'ensemble_std_lag']
                             if not all(col in merged_df.columns for col in required_cols):
                                 st.info(f'滞后{lag_days}天的数据不足，使用非滞后数据进行分析。')
@@ -542,15 +545,13 @@ try:
                             current_lag = 0
                         y = merged_df['next_day_return']
                         
-                        # 移除包含NaN值的行
                         valid_mask = X.notna().all(axis=1) & y.notna()
                         X_valid = X[valid_mask]
                         y_valid = y[valid_mask]
                         
                         if len(X_valid) >= 3:
-                            st.subheader('回归分析结果')
+                            st.subheader('回归分析结果', fontproperties=font_prop)
                             
-                            # 尝试标准线性回归
                             try:
                                 model = LinearRegression()
                                 model.fit(X_valid, y_valid)
@@ -571,7 +572,6 @@ try:
                             except Exception as e:
                                 st.info(f'多变量回归失败: {str(e)}，尝试单变量回归。')
                                 
-                                # 使用单变量回归
                                 X_simple = X_valid[[X_valid.columns[0]]]
                                 model = LinearRegression()
                                 model.fit(X_simple, y_valid)
@@ -582,7 +582,6 @@ try:
                                 st.write(f'截距: {model.intercept_:.4f}')
                                 st.write(f'{X_simple.columns[0]}系数: {model.coef_[0]:.4f}')
                             
-                            # 添加回归分析解释
                             st.info(f'💡 回归分析解释：')
                             st.write(f'- R²值越接近1，表示模型拟合效果越好')
                             st.write(f'- 情感系数为正，表示情感越积极，次日收益率可能越高')
@@ -590,8 +589,6 @@ try:
                         st.info(f'详细回归分析不可用: {str(e)}')
     except Exception as e:
         st.error(f'进行情感与收益率关系分析时发生错误：{str(e)}')
-        
-        # 显示基本数据信息
         if not merged_df.empty:
             st.write('📊 基本数据概览：')
             st.write(f'数据日期范围：{merged_df["trade_date"].min().strftime("%Y-%m-%d")} 至 {merged_df["trade_date"].max().strftime("%Y-%m-%d")}')
@@ -602,8 +599,8 @@ try:
             st.write('无法获取有效数据进行分析。')
     
     # 显示评论示例
-    st.subheader('评论示例')
-    selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'])
+    st.subheader('评论示例', fontproperties=font_prop)
+    selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'], fontproperties=font_prop)
     sentiment_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == selected_sentiment]
     if len(sentiment_comments) > 0:
         st.dataframe(sentiment_comments[['post_publish_time', 'combined_text']].sample(min(10, len(sentiment_comments))))
@@ -611,15 +608,13 @@ try:
         st.write(f'没有找到{selected_sentiment}情感类型的评论示例。')
     
     # 参数影响分析
-    st.subheader('当前参数影响分析')
+    st.subheader('当前参数影响分析', fontproperties=font_prop)
         
-    # 显示当前参数设置和影响
     st.write(f'📝 文本长度限制: {text_length} 字符（过滤掉 {len(comments_df) - len(filtered_comments)} 条长评论）')
     st.write(f'📊 移动平均窗口: {window_size} 天（平滑情感和收益率数据）')
     st.write(f'⏱️ 情感滞后天数: {lag_days} 天（分析情感对未来 {lag_days} 天收益率的影响）')
     st.write(f'🎲 LLM温度参数: {temperature}（影响模型生成的随机性，值越高生成内容越多样）')
     
-    # 参数调整提示
     st.info('💡 提示：调整任何参数后，应用将自动重新运行并更新所有分析结果。')
 
 except Exception as e:
