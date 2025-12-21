@@ -353,7 +353,7 @@ try:
                     explode = [0.1 if label in ['消极', '积极'] else 0 for label in sentiment_counts.index]
                     
                     # 绘制饼图（不设置labels参数，后续手动加标签）
-                    patches, autotexts = ax.pie(
+                    patches, texts, autotexts = ax.pie(
                         sentiment_counts.values, 
                         autopct='%1.1f%%', 
                         startangle=90, 
