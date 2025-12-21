@@ -346,7 +346,7 @@ try:
                     colors = ['#4caf50' if label == '积极' else '#ff9800' if label == '中性' else '#f44336' for label in sentiment_counts.index]
                     explode = [0.1 if label in ['消极', '积极'] else 0 for label in sentiment_counts.index]
                     
-                    # 1. 移除autopct参数（去掉内部白色百分比标签）
+                    # 绘制饼图，仅接收扇形对象
                     patches, _ = ax.pie(
                         sentiment_counts.values, 
                         startangle=90, 
@@ -355,22 +355,38 @@ try:
                         explode=explode
                     )
                     
-                    # 2. 遍历扇形，计算每个小扇形的中间坐标
+                    # 遍历每个扇形，单独处理“消极”“积极”
                     for i, label in enumerate(sentiment_counts.index):
-                        if label in ['消极', '积极']:
+                        if label == '消极':
                             patch = patches[i]
-                            # 获取扇形的角度范围，计算中间角度
-                            theta1, theta2 = patch.theta1, patch.theta2
-                            theta_mid = (theta1 + theta2) / 2  # 中间角度
-                            # 将角度转为弧度，计算指向扇形中间的坐标
-                            r = patch.r * 1.1  # 半径（比扇形略大，确保箭头指向外侧）
+                            # 计算消极扇形的中间角度
+                            theta_mid = (patch.theta1 + patch.theta2) / 2
+                            # 计算指向消极区域中心的坐标（半径缩小，更靠近图表）
+                            r = patch.r * 0.9
                             x = r * np.cos(np.radians(theta_mid))
                             y = r * np.sin(np.radians(theta_mid))
-                            # 添加箭头注释
+                            # 标签位置靠近图表（xytext调整为更紧凑）
                             ax.annotate(
-                                f'{label} ({sentiment_counts[label]/len(comments_df)*100:.1f}%)',
-                                xy=(x, y),  # 箭头指向扇形中间
-                                xytext=(1.5 if label == '消极' else 1.6, 0.8 if label == '消极' else 0.5),  # 标签位置错开
+                                f'消极 ({sentiment_counts[label]/len(comments_df)*100:.1f}%)',
+                                xy=(x, y),  # 箭头指向消极区域中心
+                                xytext=(1.2, 0.7),  # 标签靠近图表
+                                arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
+                                fontsize=11,
+                                fontproperties=font_prop
+                            )
+                        elif label == '积极':
+                            patch = patches[i]
+                            # 计算积极扇形的中间角度
+                            theta_mid = (patch.theta1 + patch.theta2) / 2
+                            # 计算指向积极区域中心的坐标
+                            r = patch.r * 0.9
+                            x = r * np.cos(np.radians(theta_mid))
+                            y = r * np.sin(np.radians(theta_mid))
+                            # 标签位置与消极错开，靠近图表
+                            ax.annotate(
+                                f'积极 ({sentiment_counts[label]/len(comments_df)*100:.1f}%)',
+                                xy=(x, y),  # 箭头指向积极区域中心
+                                xytext=(1.2, 0.5),  # 标签靠近图表
                                 arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
                                 fontsize=11,
                                 fontproperties=font_prop
