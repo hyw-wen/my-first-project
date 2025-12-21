@@ -35,8 +35,7 @@ def setup_chinese_font():
         plt.rcParams['axes.unicode_minus'] = False
         font_prop = FontProperties(family='WenQuanYi Micro Hei')
 
-# 打印当前目录文件，验证字体文件是否存在
-st.write("当前目录文件：", os.listdir())
+
 # 调用字体设置函数
 setup_chinese_font()
 
