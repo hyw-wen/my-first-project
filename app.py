@@ -348,7 +348,9 @@ try:
                     
                     # 设置饼图颜色
                     colors = ['#4caf50' if label == '积极' else '#ff9800' if label == '中性' else '#f44336' for label in sentiment_counts.index]
-                    # 绘制饼图（调整标签位置和字体）
+                    # 绘制饼图时，添加explode参数（把小占比的扇形分离出来）
+                    explode = [0.1 if label in ['消极', '积极'] else 0 for label in sentiment_counts.index]  # 分离“消极”“积极”扇形
+
                     patches, texts, autotexts = ax.pie(
                         sentiment_counts.values, 
                         labels=sentiment_counts.index, 
@@ -356,16 +358,22 @@ try:
                         startangle=90, 
                         colors=colors, 
                         wedgeprops={'edgecolor': 'white', 'linewidth': 1}, 
-                        textprops={'fontsize': 10, 'fontproperties': font_prop},  # 缩小字体
-                        labeldistance=1.1,  # 标签远离饼图，避免重叠
-                        pctdistance=0.85  # 百分比标签靠近饼图中心
+                        textprops={'fontsize': 10, 'fontproperties': font_prop},
+                        labeldistance=1.2,  # 标签再远离一些
+                        pctdistance=0.9,
+                        explode=explode  # 应用分离效果
                     )
+                    
+                    # 额外调整：让小占比的标签换行显示
+                    for i, text in enumerate(texts):
+                        if sentiment_counts.index[i] in ['消极', '积极']:
+                            text.set_text(f'\n{sentiment_counts.index[i]}')  # 标签换行，避免和百分比挤在一起
 
                     # 设置百分比标签
                     for autotext in autotexts:
-                        autotext.set_color('white')
-                        autotext.set_fontsize(9)  # 缩小百分比字体
-                                   
+                        autotext.set_color('black')  # 小扇形的百分比用黑色，更清晰
+                        autotext.set_fontsize(9)
+                                               
                     # 设置标题
                     ax.set_title('LLM情感标签分布', fontsize=14, fontproperties=font_prop)
                     
