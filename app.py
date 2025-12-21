@@ -375,7 +375,7 @@ try:
                     # 获取“消极”扇形的位置（假设sentiment_counts.index中“消极”是第2个元素）
                     消极_patch = patches[sentiment_counts.index.tolist().index('消极')]
                     # 获取扇形的中心点坐标
-                    neg_x, neg_y = 消极_patch.get_center()
+                    neg_x, neg_y = 消极_patch.center
                     # 添加箭头注释
                     ax.annotate(
                         '消极 (0.7%)',
@@ -388,7 +388,7 @@ try:
                     
                     # 3. 给“积极”加带箭头的注释标签
                     积极_patch = patches[sentiment_counts.index.tolist().index('积极')]
-                    pos_x, pos_y = 积极_patch.get_center()
+                    pos_x, pos_y = 积极_patch.center
                     ax.annotate(
                         '积极 (3.0%)',
                         xy=(pos_x, pos_y),
