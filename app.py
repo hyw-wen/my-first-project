@@ -27,7 +27,6 @@ def setup_chinese_font():
         plt.rcParams["ytick.labelsize"] = 10
         plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
         sns.set(font=font_prop.get_name())  # Seaborn字体设置
-        st.success("已加载中文字体")
     else:
         st.error(f"未找到字体文件：{font_file}")
         # 备用字体设置
