@@ -9,26 +9,19 @@ import os
 from matplotlib.font_manager import FontProperties  # 导入字体管理
 import matplotlib.font_manager as fm
 
-# 关键：强制加载自定义字体（修正缩进错误）
 def setup_chinese_font():
-    # 获取字体文件路径
     font_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SourceHanSansSC-Regular.otf")
     
-    # 注意：下面的代码要和“if”对齐，用4个空格缩进
     if os.path.exists(font_file):
-        # 加载字体
         font_prop = FontProperties(fname=font_file)
-        # 全局设置所有文本的字体
         plt.rcParams["font.family"] = font_prop.get_name()
-        # 单独设置标题、标签、刻度的字体
-        plt.rcParams["axes.titlefont"] = font_prop
-        plt.rcParams["axes.labelsize"] = 12
+        # 替换无效的"axes.titlefont"，改用有效参数
+        plt.rcParams["axes.titlesize"] = 14  # 标题大小
+        plt.rcParams["axes.labelsize"] = 12  # 标签大小
         plt.rcParams["axes.labelweight"] = "bold"
         plt.rcParams["xtick.labelsize"] = 10
         plt.rcParams["ytick.labelsize"] = 10
-        # 解决负号显示问题
         plt.rcParams["axes.unicode_minus"] = False
-        # Seaborn也用这个字体
         sns.set(font=font_prop.get_name())
         st.success("已加载中文字体")
     else:
