@@ -12,7 +12,7 @@ import matplotlib.font_manager as fm
 # 关键：强制加载自定义字体（修正缩进错误）
 def setup_chinese_font():
     # 获取字体文件路径
-    font_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SourceHanSansCN-Regular.otf")  # 确保字体文件名和你上传的一致
+    font_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SourceHanSansSC-Regular.otf")
     
     # 注意：下面的代码要和“if”对齐，用4个空格缩进
     if os.path.exists(font_file):
