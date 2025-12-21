@@ -195,12 +195,12 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     return merged_df, filtered_comments
 
 # 侧边栏：股票选择（固定为东方财富）
-st.sidebar.subheader('股票选择', fontproperties=font_prop)
+st.sidebar.subheader('股票选择')
 stock_code = st.sidebar.selectbox('选择股票代码', ['300059'], index=0)
 stock_name = '东方财富'
 
 # 侧边栏：参数调整
-st.sidebar.subheader('参数调整', fontproperties=font_prop)
+st.sidebar.subheader('参数调整')
 
 # 使用session_state管理参数状态
 if 'text_length' not in st.session_state:
@@ -236,7 +236,7 @@ try:
     merged_df, filtered_comments = process_data(comments_df, price_df, text_length, window_size, lag_days)
     
     # 数据质量检查
-    st.subheader('数据质量检查', fontproperties=font_prop)
+    st.subheader('数据质量检查')
     
     # 检查评论数量
     total_comments = len(comments_df)
@@ -264,7 +264,7 @@ try:
         st.write(f'- 数据日期范围：{date_range}')
     
     # 显示评论数量随时间的变化
-    st.subheader('评论数量随时间变化', fontproperties=font_prop)
+    st.subheader('评论数量随时间变化')
     
     try:
         # 按日期分组并计算评论数量
@@ -333,13 +333,13 @@ try:
         st.write('请检查数据格式或尝试调整参数。')
     
     # 显示情感分析结果
-    st.subheader('情感分析结果', fontproperties=font_prop)
+    st.subheader('情感分析结果')
     
     col1, col2 = st.columns(2)
     
     with col1:
         # LLM情感标签分布
-        st.write('### 情感标签分布', fontproperties=font_prop)
+        st.write('### 情感标签分布')
         try:
             if 'llm_sentiment_label' in comments_df.columns:
                 sentiment_counts = comments_df['llm_sentiment_label'].value_counts()
@@ -389,7 +389,7 @@ try:
     
     with col2:
         # 融合情感得分分布
-        st.write('### 情感得分分布', fontproperties=font_prop)
+        st.write('### 情感得分分布')
         try:
             if 'ensemble_sentiment_score' in comments_df.columns:
                 # 计算统计信息
@@ -448,7 +448,7 @@ try:
             st.error(f'绘制情感得分分布图时发生错误：{str(e)}')
     
     # 显示平均情感与次日收益率的关系
-    st.subheader('情感与收益率关系分析', fontproperties=font_prop)
+    st.subheader('情感与收益率关系分析')
     
     try:
         if merged_df.empty:
@@ -521,7 +521,7 @@ try:
                 st.write('- 红色线：简单回归线 (如适用)')
                 
                 # 显示基本统计信息
-                st.subheader('基本统计信息', fontproperties=font_prop)
+                st.subheader('基本统计信息')
                 st.write(f'总交易日数量：{len(merged_df)} 个')
                 st.write(f'有评论的交易日数量：{sum(merged_df["comment_count"] > 0)} 个')
                 st.write(f'平均每日评论数：{merged_df["comment_count"].mean():.2f} 条')
@@ -550,7 +550,7 @@ try:
                         y_valid = y[valid_mask]
                         
                         if len(X_valid) >= 3:
-                            st.subheader('回归分析结果', fontproperties=font_prop)
+                            st.subheader('回归分析结果')
                             
                             try:
                                 model = LinearRegression()
@@ -599,8 +599,8 @@ try:
             st.write('无法获取有效数据进行分析。')
     
     # 显示评论示例
-    st.subheader('评论示例', fontproperties=font_prop)
-    selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'], fontproperties=font_prop)
+    st.subheader('评论示例')
+    selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'])
     sentiment_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == selected_sentiment]
     if len(sentiment_comments) > 0:
         st.dataframe(sentiment_comments[['post_publish_time', 'combined_text']].sample(min(10, len(sentiment_comments))))
@@ -608,7 +608,7 @@ try:
         st.write(f'没有找到{selected_sentiment}情感类型的评论示例。')
     
     # 参数影响分析
-    st.subheader('当前参数影响分析', fontproperties=font_prop)
+    st.subheader('当前参数影响分析')
         
     st.write(f'📝 文本长度限制: {text_length} 字符（过滤掉 {len(comments_df) - len(filtered_comments)} 条长评论）')
     st.write(f'📊 移动平均窗口: {window_size} 天（平滑情感和收益率数据）')
