@@ -336,78 +336,54 @@ try:
     col1, col2 = st.columns(2)
     
     with col1:
-        # LLM情感标签分布
         st.write('### 情感标签分布')
         try:
             if 'llm_sentiment_label' in comments_df.columns:
                 sentiment_counts = comments_df['llm_sentiment_label'].value_counts()
                 
                 if len(sentiment_counts) > 0:
-                    # 创建饼图
                     fig, ax = plt.subplots(figsize=(8, 6))
-                    
-                    # 设置饼图颜色
                     colors = ['#4caf50' if label == '积极' else '#ff9800' if label == '中性' else '#f44336' for label in sentiment_counts.index]
-                    
-                    # 分离小占比扇形
                     explode = [0.1 if label in ['消极', '积极'] else 0 for label in sentiment_counts.index]
                     
-                    # 绘制饼图（不设置labels参数，后续手动加标签）
-                    patches, texts, autotexts = ax.pie(
+                    # 1. 移除autopct参数（去掉内部白色百分比标签）
+                    patches, texts, _ = ax.pie(
                         sentiment_counts.values, 
-                        autopct='%1.1f%%', 
                         startangle=90, 
                         colors=colors, 
                         wedgeprops={'edgecolor': 'white', 'linewidth': 1}, 
-                        pctdistance=0.85,
                         explode=explode
                     )
                     
-                    # 设置百分比标签
-                    for autotext in autotexts:
-                        autotext.set_color('white')
-                        autotext.set_fontsize(11)
+                    # 2. 遍历扇形，计算每个小扇形的中间坐标
+                    for i, label in enumerate(sentiment_counts.index):
+                        if label in ['消极', '积极']:
+                            patch = patches[i]
+                            # 获取扇形的角度范围，计算中间角度
+                            theta1, theta2 = patch.theta1, patch.theta2
+                            theta_mid = (theta1 + theta2) / 2  # 中间角度
+                            # 将角度转为弧度，计算指向扇形中间的坐标
+                            r = patch.r * 1.1  # 半径（比扇形略大，确保箭头指向外侧）
+                            x = r * np.cos(np.radians(theta_mid))
+                            y = r * np.sin(np.radians(theta_mid))
+                            # 添加箭头注释
+                            ax.annotate(
+                                f'{label} ({sentiment_counts[label]/len(comments_df)*100:.1f}%)',
+                                xy=(x, y),  # 箭头指向扇形中间
+                                xytext=(1.5 if label == '消极' else 1.6, 0.8 if label == '消极' else 0.5),  # 标签位置错开
+                                arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
+                                fontsize=11,
+                                fontproperties=font_prop
+                            )
                     
-                    # 1. 给“中性”加默认标签
-                    ax.text(0, -1.2, '中性 (96.3%)', ha='center', fontsize=12, fontproperties=font_prop)
+                    # 中性标签
+                    ax.text(0, -1.2, f'中性 ({sentiment_counts["中性"]/len(comments_df)*100:.1f}%)', ha='center', fontsize=12, fontproperties=font_prop)
                     
-                    # 2. 给“消极”加带箭头的注释标签
-                    # 获取“消极”扇形的位置（假设sentiment_counts.index中“消极”是第2个元素）
-                    消极_patch = patches[sentiment_counts.index.tolist().index('消极')]
-                    # 获取扇形的中心点坐标
-                    neg_x, neg_y = 消极_patch.center
-                    # 添加箭头注释
-                    ax.annotate(
-                        '消极 (0.7%)',
-                        xy=(neg_x, neg_y),  # 箭头指向的位置（扇形中心）
-                        xytext=(1.5, 0.8),  # 标签显示的位置
-                        arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
-                        fontsize=11,
-                        fontproperties=font_prop
-                    )
-                    
-                    # 3. 给“积极”加带箭头的注释标签
-                    积极_patch = patches[sentiment_counts.index.tolist().index('积极')]
-                    pos_x, pos_y = 积极_patch.center
-                    ax.annotate(
-                        '积极 (3.0%)',
-                        xy=(pos_x, pos_y),
-                        xytext=(1.5, 0.5),
-                        arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
-                        fontsize=11,
-                        fontproperties=font_prop
-                    )
-                    
-                    # 设置标题
                     ax.set_title('LLM情感标签分布', fontsize=14, fontproperties=font_prop)
-                    
-                    # 确保饼图是圆形
                     ax.axis('equal')
-                    
-                    # 显示图表
                     st.pyplot(fig)
                     
-                    # 显示具体数量
+                    # 显示数量
                     st.write('情感标签数量：')
                     for label, count in sentiment_counts.items():
                         st.write(f'- {label}: {count} 条 ({count/len(comments_df)*100:.1f}%)')
