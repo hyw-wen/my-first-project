@@ -336,63 +336,87 @@ try:
     col1, col2 = st.columns(2)
     
     with col1:
-        # LLM情感标签分布
-        st.write('### 情感标签分布')
-        try:
-            if 'llm_sentiment_label' in comments_df.columns:
-                sentiment_counts = comments_df['llm_sentiment_label'].value_counts()
+    # LLM情感标签分布
+    st.write('### 情感标签分布')
+    try:
+        if 'llm_sentiment_label' in comments_df.columns:
+            sentiment_counts = comments_df['llm_sentiment_label'].value_counts()
+            
+            if len(sentiment_counts) > 0:
+                # 创建饼图
+                fig, ax = plt.subplots(figsize=(8, 6))
                 
-                if len(sentiment_counts) > 0:
-                    # 创建饼图
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    
-                    # 设置饼图颜色
-                    colors = ['#4caf50' if label == '积极' else '#ff9800' if label == '中性' else '#f44336' for label in sentiment_counts.index]
-                    # 绘制饼图时，添加explode参数（把小占比的扇形分离出来）
-                    explode = [0.1 if label in ['消极', '积极'] else 0 for label in sentiment_counts.index]  # 分离“消极”“积极”扇形
-
-                    patches, texts, autotexts = ax.pie(
-                        sentiment_counts.values, 
-                        labels=sentiment_counts.index, 
-                        autopct='%1.1f%%', 
-                        startangle=90, 
-                        colors=colors, 
-                        wedgeprops={'edgecolor': 'white', 'linewidth': 1}, 
-                        textprops={'fontsize': 10, 'fontproperties': font_prop},
-                        labeldistance=1.2,  # 标签再远离一些
-                        pctdistance=0.9,
-                        explode=explode  # 应用分离效果
-                    )
-                    
-                    # 额外调整：让小占比的标签换行显示
-                    for i, text in enumerate(texts):
-                        if sentiment_counts.index[i] in ['消极', '积极']:
-                            text.set_text(f'\n{sentiment_counts.index[i]}')  # 标签换行，避免和百分比挤在一起
-
-                    # 设置百分比标签
-                    for autotext in autotexts:
-                        autotext.set_color('black')  # 小扇形的百分比用黑色，更清晰
-                        autotext.set_fontsize(9)
-                                               
-                    # 设置标题
-                    ax.set_title('LLM情感标签分布', fontsize=14, fontproperties=font_prop)
-                    
-                    # 确保饼图是圆形
-                    ax.axis('equal')
-                    
-                    # 显示图表
-                    st.pyplot(fig)
-                    
-                    # 显示具体数量
-                    st.write('情感标签数量：')
-                    for label, count in sentiment_counts.items():
-                        st.write(f'- {label}: {count} 条 ({count/len(comments_df)*100:.1f}%)')
-                else:
-                    st.write('暂无情感标签数据')
+                # 设置饼图颜色
+                colors = ['#4caf50' if label == '积极' else '#ff9800' if label == '中性' else '#f44336' for label in sentiment_counts.index]
+                
+                # 分离小占比扇形
+                explode = [0.1 if label in ['消极', '积极'] else 0 for label in sentiment_counts.index]
+                
+                # 绘制饼图（不设置labels参数，后续手动加标签）
+                patches, autotexts = ax.pie(
+                    sentiment_counts.values, 
+                    autopct='%1.1f%%', 
+                    startangle=90, 
+                    colors=colors, 
+                    wedgeprops={'edgecolor': 'white', 'linewidth': 1}, 
+                    pctdistance=0.85,
+                    explode=explode
+                )
+                
+                # 设置百分比标签
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontsize(11)
+                
+                # 1. 给“中性”加默认标签
+                ax.text(0, -1.2, '中性 (96.3%)', ha='center', fontsize=12, fontproperties=font_prop)
+                
+                # 2. 给“消极”加带箭头的注释标签
+                # 获取“消极”扇形的位置（假设sentiment_counts.index中“消极”是第2个元素）
+               消极_patch = patches[sentiment_counts.index.tolist().index('消极')]
+                # 获取扇形的中心点坐标
+                neg_x, neg_y = 消极_patch.get_center()
+                # 添加箭头注释
+                ax.annotate(
+                    '消极 (0.7%)',
+                    xy=(neg_x, neg_y),  # 箭头指向的位置（扇形中心）
+                    xytext=(1.5, 0.8),  # 标签显示的位置
+                    arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
+                    fontsize=11,
+                    fontproperties=font_prop
+                )
+                
+                # 3. 给“积极”加带箭头的注释标签
+                积极_patch = patches[sentiment_counts.index.tolist().index('积极')]
+                pos_x, pos_y = 积极_patch.get_center()
+                ax.annotate(
+                    '积极 (3.0%)',
+                    xy=(pos_x, pos_y),
+                    xytext=(1.5, 0.5),
+                    arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
+                    fontsize=11,
+                    fontproperties=font_prop
+                )
+                
+                # 设置标题
+                ax.set_title('LLM情感标签分布', fontsize=14, fontproperties=font_prop)
+                
+                # 确保饼图是圆形
+                ax.axis('equal')
+                
+                # 显示图表
+                st.pyplot(fig)
+                
+                # 显示具体数量
+                st.write('情感标签数量：')
+                for label, count in sentiment_counts.items():
+                    st.write(f'- {label}: {count} 条 ({count/len(comments_df)*100:.1f}%)')
             else:
-                st.write('数据中没有情感标签列')
-        except Exception as e:
-            st.error(f'绘制情感标签分布图时发生错误：{str(e)}')
+                st.write('暂无情感标签数据')
+        else:
+            st.write('数据中没有情感标签列')
+    except Exception as e:
+        st.error(f'绘制情感标签分布图时发生错误：{str(e)}')
     
     with col2:
         # 融合情感得分分布
