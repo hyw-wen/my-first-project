@@ -348,8 +348,7 @@ try:
                     
                     # 设置饼图颜色
                     colors = ['#4caf50' if label == '积极' else '#ff9800' if label == '中性' else '#f44336' for label in sentiment_counts.index]
-                    
-                    # 绘制饼图（显式指定字体）
+                    # 绘制饼图（调整标签位置和字体）
                     patches, texts, autotexts = ax.pie(
                         sentiment_counts.values, 
                         labels=sentiment_counts.index, 
@@ -357,14 +356,16 @@ try:
                         startangle=90, 
                         colors=colors, 
                         wedgeprops={'edgecolor': 'white', 'linewidth': 1}, 
-                        textprops={'fontsize': 12, 'fontproperties': font_prop}
+                        textprops={'fontsize': 10, 'fontproperties': font_prop},  # 缩小字体
+                        labeldistance=1.1,  # 标签远离饼图，避免重叠
+                        pctdistance=0.85  # 百分比标签靠近饼图中心
                     )
-                    
+
                     # 设置百分比标签
                     for autotext in autotexts:
                         autotext.set_color('white')
-                        autotext.set_fontsize(11)
-                    
+                        autotext.set_fontsize(9)  # 缩小百分比字体
+                                   
                     # 设置标题
                     ax.set_title('LLM情感标签分布', fontsize=14, fontproperties=font_prop)
                     
