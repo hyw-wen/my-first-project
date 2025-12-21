@@ -11,7 +11,7 @@ import matplotlib.font_manager as fm
 
 # 关键：强制加载自定义字体（修正缩进错误）
 def setup_chinese_font():
-    # 获取字体文件路径（和app.py同目录）
+    # 获取字体文件路径
     font_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SourceHanSansCN-Regular.otf")  # 确保字体文件名和你上传的一致
     
     # 注意：下面的代码要和“if”对齐，用4个空格缩进
@@ -33,7 +33,8 @@ def setup_chinese_font():
         st.success("已加载中文字体")
     else:
         st.error(f"未找到字体文件：{font_file}")
-
+# 在setup_chinese_font函数前添加
+st.write("当前目录文件：", os.listdir())
 # 调用字体设置函数
 setup_chinese_font()
 
