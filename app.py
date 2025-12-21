@@ -347,7 +347,7 @@ try:
                     explode = [0.1 if label in ['消极', '积极'] else 0 for label in sentiment_counts.index]
                     
                     # 1. 移除autopct参数（去掉内部白色百分比标签）
-                    patches, texts, _ = ax.pie(
+                    patches, _ = ax.pie(
                         sentiment_counts.values, 
                         startangle=90, 
                         colors=colors, 
