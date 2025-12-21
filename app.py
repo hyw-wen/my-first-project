@@ -9,10 +9,21 @@ import os
 import requests
 from collections import Counter
 import re
+import matplotlib.font_manager as fm
 
-# 设置中文显示
-plt.rcParams['font.sans-serif'] = ['SimHei']
-plt.rcParams['axes.unicode_minus'] = False
+# 设置中文显示 - 修复云端中文乱码问题
+def setup_chinese_font():
+    """设置中文字体，解决云端环境中文显示问题"""
+    try:
+        # 尝试设置中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+    except:
+        # 如果设置失败，使用默认字体
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+
+setup_chinese_font()
 warnings.filterwarnings('ignore')
 
 # 设置页面配置
@@ -23,8 +34,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 加载情感词典
-@st.cache_data
+# 加载情感词典 - 移除缓存以确保参数更新生效
 def load_sentiment_dictionaries():
     """
     加载用户提供的情感词典
@@ -88,8 +98,7 @@ def lexicon_based_sentiment_analysis(text, pos_words, neg_words):
 # 设置页面标题
 st.title('东方财富股吧评论情感分析')
 
-# 加载数据
-@st.cache_data
+# 加载数据 - 移除缓存以确保参数更新生效
 def load_data():
     # 加载评论和情感分析数据
     # 优先使用更新后的情感分析结果文件
@@ -123,7 +132,7 @@ def load_data():
         st.error(f"加载数据时发生错误：{str(e)}")
         st.stop()
 
-# 处理数据
+# 处理数据 - 移除缓存以确保参数更新生效
 def process_data(comments_df, price_df, text_length_limit=500, window_size=30, lag_days=0):
     # 处理combined_text字段为空的情况
     filtered_comments = comments_df.copy()
@@ -220,6 +229,7 @@ if st.sidebar.button('🔄 重置所有参数'):
     st.session_state.text_length = 500
     st.session_state.window_size = 30
     st.session_state.lag_days = 0
+    st.experimental_rerun()
 
 text_length = st.sidebar.slider('文本长度限制', 50, 1000, st.session_state.text_length, step=50, key='length_slider')
 window_size = st.sidebar.slider('移动平均窗口大小(天)', 1, 90, st.session_state.window_size, step=5, key='window_slider')
@@ -459,46 +469,59 @@ try:
                 st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
             else:
                 # 即使数据有限，也尝试显示基本散点图
-                fig, ax = plt.subplots(figsize=(12, 6))
+                fig, ax = plt.subplots(figsize=(12, 8))
                 
-                if lag_days > 0:
-                    scatter_x = merged_df['ensemble_mean_lag'] if 'ensemble_mean_lag' in merged_df.columns else merged_df['ensemble_mean']
+                # 选择要显示的数据
+                if lag_days > 0 and 'ensemble_mean_lag' in merged_df.columns:
+                    x_data = merged_df['ensemble_mean_lag']
+                    x_label = f'情感得分(滞后{lag_days}天)'
                 else:
-                    scatter_x = merged_df['ensemble_mean']
-                scatter_y = merged_df['next_day_return']
+                    x_data = merged_df['ensemble_mean']
+                    x_label = '当日情感得分'
                 
-                # 过滤掉NaN值
-                valid_mask = scatter_x.notna() & scatter_y.notna()
-                filtered_x = scatter_x[valid_mask]
-                filtered_y = scatter_y[valid_mask]
+                y_data = merged_df['next_day_return']
                 
-                if len(filtered_x) < 1:
-                    st.warning(f'有效样本不足（{len(filtered_x)}个样本），仅显示基本图表。')
-                    ax.text(0.5, 0.5, f'仅找到{len(filtered_x)}个有效样本点', transform=ax.transAxes, ha='center', va='center', fontsize=12)
-                    ax.set_title('数据不足', fontsize=14)
-                else:
-                    # 绘制散点图
-                    ax.scatter(filtered_x, filtered_y, alpha=0.7, color='blue', s=60)
-                    
-                    # 添加趋势线
-                    if len(filtered_x) >= 2:
-                        z = np.polyfit(filtered_x, filtered_y, 1)
-                        p = np.poly1d(z)
-                        ax.plot(filtered_x, p(filtered_x), "r--", alpha=0.8)
+                # 绘制散点图
+                scatter = ax.scatter(x_data, y_data, alpha=0.7, s=60, c='blue', edgecolors='w', linewidth=0.5)
+                
+                # 添加趋势线
+                if len(x_data.dropna()) > 1 and len(y_data.dropna()) > 1:
+                    try:
+                        # 使用线性回归拟合趋势线
+                        x_valid = x_data.dropna()
+                        y_valid = y_data.dropna()
                         
-                        # 计算相关系数
-                        correlation = np.corrcoef(filtered_x, filtered_y)[0, 1]
-                        ax.text(0.05, 0.95, f'相关系数: {correlation:.3f}', transform=ax.transAxes, 
-                               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-                    
-                    # 设置图表标题和标签
-                    lag_text = f"（{lag_days}天滞后）" if lag_days > 0 else ""
-                    ax.set_title(f'平均情感得分与次日收益率关系{lag_text}', fontsize=14)
-                    ax.set_xlabel('平均情感得分', fontsize=12)
-                    ax.set_ylabel('次日收益率(%)', fontsize=12)
-                    
-                    # 添加网格线
-                    ax.grid(True, alpha=0.3)
+                        # 确保数据长度一致
+                        min_len = min(len(x_valid), len(y_valid))
+                        x_valid = x_valid.iloc[:min_len]
+                        y_valid = y_valid.iloc[:min_len]
+                        
+                        if len(x_valid) > 1:
+                            # 使用RANSAC回归器，对异常值更鲁棒
+                            model = RANSACRegressor()
+                            model.fit(x_valid.values.reshape(-1, 1), y_valid)
+                            x_range = np.linspace(x_valid.min(), x_valid.max(), 100)
+                            y_pred = model.predict(x_range.reshape(-1, 1))
+                            ax.plot(x_range, y_pred, 'r-', linewidth=2, label='趋势线')
+                            
+                            # 计算相关系数
+                            corr_coef = np.corrcoef(x_valid, y_valid)[0, 1]
+                            ax.text(0.05, 0.95, f'相关系数: {corr_coef:.3f}', transform=ax.transAxes, 
+                                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+                    except Exception as e:
+                        # 如果趋势线拟合失败，只显示散点图
+                        pass
+                
+                # 设置图表标题和标签
+                ax.set_title(f'{x_label}与次日收益率关系', fontsize=14)
+                ax.set_xlabel(x_label, fontsize=12)
+                ax.set_ylabel('次日收益率(%)', fontsize=12)
+                
+                # 添加网格线
+                ax.grid(True, alpha=0.3)
+                
+                # 添加图例
+                ax.legend()
                 
                 # 调整布局
                 plt.tight_layout()
@@ -507,120 +530,247 @@ try:
                 st.pyplot(fig)
                 
                 # 显示统计信息
-                if len(filtered_x) >= 1:
-                    st.write(f'📊 关系分析统计：')
-                    st.write(f'- 有效样本数：{len(filtered_x)} 个')
-                    if len(filtered_x) >= 2:
-                        st.write(f'- 相关系数：{correlation:.4f}')
-                    st.write(f'- 平均情感得分：{filtered_x.mean():.4f}')
-                    st.write(f'- 平均次日收益率：{filtered_y.mean():.4f}%')
+                st.write(f'📊 {x_label}与次日收益率统计：')
+                st.write(f'- 数据点数量：{len(x_data.dropna())} 个')
+                st.write(f'- 平均{x_label}：{x_data.mean():.4f}')
+                st.write(f'- 平均次日收益率：{y_data.mean():.4f}%')
+                st.write(f'- {x_label}标准差：{x_data.std():.4f}')
+                st.write(f'- 次日收益率标准差：{y_data.std():.4f}%')
+                
+                # 计算相关性
+                if len(x_data.dropna()) > 1 and len(y_data.dropna()) > 1:
+                    x_valid = x_data.dropna()
+                    y_valid = y_data.dropna()
+                    
+                    # 确保数据长度一致
+                    min_len = min(len(x_valid), len(y_valid))
+                    x_valid = x_valid.iloc[:min_len]
+                    y_valid = y_valid.iloc[:min_len]
+                    
+                    if len(x_valid) > 1:
+                        corr_coef = np.corrcoef(x_valid, y_valid)[0, 1]
+                        st.write(f'- 相关系数：{corr_coef:.4f}')
+                        
+                        # 解释相关性
+                        if abs(corr_coef) < 0.1:
+                            st.write('- 相关性解释：情感得分与次日收益率几乎没有线性相关性')
+                        elif abs(corr_coef) < 0.3:
+                            st.write('- 相关性解释：情感得分与次日收益率存在弱相关性')
+                        elif abs(corr_coef) < 0.5:
+                            st.write('- 相关性解释：情感得分与次日收益率存在中等相关性')
+                        else:
+                            st.write('- 相关性解释：情感得分与次日收益率存在强相关性')
+                        
+                        if corr_coef < 0:
+                            st.write('- 相关性方向：负相关（情感得分越高，次日收益率越低）')
+                        else:
+                            st.write('- 相关性方向：正相关（情感得分越高，次日收益率越高）')
     except Exception as e:
         st.error(f'绘制情感与收益率关系图时发生错误：{str(e)}')
         st.write('请检查数据格式或尝试调整参数。')
     
-    # 回归分析
-    st.subheader('回归分析')
+    # 显示时间序列分析
+    st.subheader('时间序列分析')
     
     try:
-        if merged_df.empty or len(merged_df) < 2:
-            st.warning('数据不足，无法进行回归分析。')
+        if merged_df.empty:
+            st.warning('没有可用的数据进行分析。')
+        else:
+            # 创建时间序列图表
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+            
+            # 绘制情感得分时间序列
+            ax1.plot(merged_df['trade_date'], merged_df['ensemble_mean'], 'b-', linewidth=2, label='情感得分')
+            if window_size > 1 and 'ensemble_mean_rolling' in merged_df.columns:
+                ax1.plot(merged_df['trade_date'], merged_df['ensemble_mean_rolling'], 'r--', linewidth=2, label=f'{window_size}日移动平均')
+            ax1.set_title('情感得分时间序列', fontsize=14)
+            ax1.set_ylabel('情感得分', fontsize=12)
+            ax1.grid(True, alpha=0.3)
+            ax1.legend()
+            
+            # 绘制收益率时间序列
+            ax2.plot(merged_df['trade_date'], merged_df['next_day_return'], 'g-', linewidth=2, label='次日收益率')
+            if window_size > 1 and 'next_day_return_rolling' in merged_df.columns:
+                ax2.plot(merged_df['trade_date'], merged_df['next_day_return_rolling'], 'r--', linewidth=2, label=f'{window_size}日移动平均')
+            ax2.set_title('次日收益率时间序列', fontsize=14)
+            ax2.set_xlabel('日期', fontsize=12)
+            ax2.set_ylabel('收益率(%)', fontsize=12)
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+            
+            # 调整布局
+            plt.tight_layout()
+            
+            # 显示图表
+            st.pyplot(fig)
+            
+            # 显示统计信息
+            st.write('📊 时间序列统计：')
+            st.write(f'- 数据日期范围：{merged_df["trade_date"].min().strftime("%Y-%m-%d")} 至 {merged_df["trade_date"].max().strftime("%Y-%m-%d")}')
+            st.write(f'- 平均情感得分：{merged_df["ensemble_mean"].mean():.4f}')
+            st.write(f'- 情感得分标准差：{merged_df["ensemble_mean"].std():.4f}')
+            st.write(f'- 平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
+            st.write(f'- 次日收益率标准差：{merged_df["next_day_return"].std():.4f}%')
+            
+            # 计算情感得分和收益率的相关性
+            if len(merged_df['ensemble_mean'].dropna()) > 1 and len(merged_df['next_day_return'].dropna()) > 1:
+                corr_coef = np.corrcoef(merged_df['ensemble_mean'].dropna(), merged_df['next_day_return'].dropna())[0, 1]
+                st.write(f'- 情感得分与次日收益率相关系数：{corr_coef:.4f}')
+    except Exception as e:
+        st.error(f'绘制时间序列图时发生错误：{str(e)}')
+        st.write('请检查数据格式或尝试调整参数。')
+    
+    # 显示回归分析结果
+    st.subheader('回归分析结果')
+    
+    try:
+        if merged_df.empty:
+            st.warning('没有可用的数据进行分析。')
         else:
             # 准备回归数据
-            if lag_days > 0:
-                x_col = 'ensemble_mean_lag' if 'ensemble_mean_lag' in merged_df.columns else 'ensemble_mean'
-                count_col = 'comment_count_lag' if 'comment_count_lag' in merged_df.columns else 'comment_count'
+            if lag_days > 0 and 'ensemble_mean_lag' in merged_df.columns:
+                X = merged_df[['ensemble_mean_lag', 'comment_count_lag']].fillna(0)
+                feature_names = [f'情感得分(滞后{lag_days}天)', f'评论数量(滞后{lag_days}天)']
             else:
-                x_col = 'ensemble_mean'
-                count_col = 'comment_count'
+                X = merged_df[['ensemble_mean', 'comment_count']].fillna(0)
+                feature_names = ['情感得分', '评论数量']
             
-            # 过滤NaN值
-            regression_df = merged_df[[x_col, count_col, 'next_day_return']].dropna()
+            y = merged_df['next_day_return'].fillna(0)
             
-            if len(regression_df) < 2:
-                st.warning('有效数据不足，无法进行回归分析。')
+            # 确保数据不为空
+            if len(X.dropna()) == 0 or len(y.dropna()) == 0:
+                st.warning('回归分析数据不足，无法进行分析。')
             else:
-                # 单变量回归（情感得分）
-                X = regression_df[[x_col]]
-                y = regression_df['next_day_return']
-                
+                # 使用线性回归模型
                 model = LinearRegression()
                 model.fit(X, y)
+                
+                # 计算模型评估指标
                 r2 = model.score(X, y)
+                y_pred = model.predict(X)
+                mse = np.mean((y - y_pred) ** 2)
                 
-                # 双变量回归（情感得分 + 评论数量）
-                X2 = regression_df[[x_col, count_col]]
-                model2 = LinearRegression()
-                model2.fit(X2, y)
-                r2_2 = model2.score(X2, y)
-                
-                # 显示回归结果
+                # 显示模型结果
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.write('### 单变量回归（情感得分）')
-                    st.write(f'- R²: {r2:.4f}')
-                    st.write(f'- 回归系数: {model.coef_[0]:.6f}')
-                    st.write(f'- 截距: {model.intercept_:.6f}')
+                    st.write('### 模型评估指标')
+                    st.write(f'- R²得分：{r2:.4f}')
+                    st.write(f'- 均方误差(MSE)：{mse:.4f}')
                     
-                    # 创建回归图
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    ax.scatter(regression_df[x_col], regression_df['next_day_return'], alpha=0.7)
-                    ax.plot(regression_df[x_col], model.predict(X), color='red', linewidth=2)
-                    ax.set_xlabel('平均情感得分')
-                    ax.set_ylabel('次日收益率(%)')
-                    ax.set_title('单变量回归结果')
-                    ax.grid(True, alpha=0.3)
-                    plt.tight_layout()
-                    st.pyplot(fig)
+                    # 解释R²得分
+                    if r2 < 0.1:
+                        st.write('- 模型解释力：模型解释力很弱，情感指标对收益率的解释能力有限')
+                    elif r2 < 0.3:
+                        st.write('- 模型解释力：模型解释力较弱，情感指标对收益率有一定影响')
+                    elif r2 < 0.5:
+                        st.write('- 模型解释力：模型解释力中等，情感指标对收益率有显著影响')
+                    else:
+                        st.write('- 模型解释力：模型解释力较强，情感指标对收益率有很大影响')
                 
                 with col2:
-                    st.write('### 双变量回归（情感得分 + 评论数量）')
-                    st.write(f'- R²: {r2_2:.4f}')
-                    st.write(f'- 情感得分系数: {model2.coef_[0]:.6f}')
-                    st.write(f'- 评论数量系数: {model2.coef_[1]:.6f}')
-                    st.write(f'- 截距: {model2.intercept_:.6f}')
-                    
-                    # 创建系数比较图
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    coefficients = [model2.coef_[0], model2.coef_[1]]
-                    labels = ['情感得分', '评论数量']
-                    colors = ['blue', 'green']
-                    bars = ax.bar(labels, coefficients, color=colors)
-                    ax.set_ylabel('回归系数')
-                    ax.set_title('双变量回归系数比较')
-                    ax.grid(True, alpha=0.3)
-                    
-                    # 添加数值标签
-                    for bar, coeff in zip(bars, coefficients):
-                        height = bar.get_height()
-                        ax.text(bar.get_x() + bar.get_width()/2., height + (0.000001 if height > 0 else -0.000001),
-                               f'{coeff:.6f}', ha='center', va='bottom' if height > 0 else 'top')
-                    
-                    plt.tight_layout()
-                    st.pyplot(fig)
+                    st.write('### 回归系数')
+                    for i, (name, coef) in enumerate(zip(feature_names, model.coef_)):
+                        st.write(f'- {name}：{coef:.6f}')
+                    st.write(f'- 截距：{model.intercept_:.6f}')
                 
-                # 模型比较
-                st.write('### 模型比较')
-                st.write(f'- 单变量模型 R²: {r2:.4f}')
-                st.write(f'- 双变量模型 R²: {r2_2:.4f}')
-                improvement = ((r2_2 - r2) / r2 * 100) if r2 != 0 else 0
-                st.write(f'- 模型改进: {improvement:.2f}%')
+                # 创建回归系数可视化
+                fig, ax = plt.subplots(figsize=(10, 6))
                 
-                # 结论
-                st.write('### 结论')
-                if r2 > 0.1:
-                    st.write('✅ 情感得分对次日收益率有较强的预测能力')
-                elif r2 > 0.05:
-                    st.write('⚠️ 情感得分对次日收益率有一定的预测能力')
+                # 绘制系数条形图
+                colors = ['#1f77b4', '#ff7f0e']
+                bars = ax.bar(feature_names, model.coef_, color=colors, alpha=0.7)
+                
+                # 添加数值标签
+                for bar, coef in zip(bars, model.coef_):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + (0.001 if height >= 0 else -0.001),
+                            f'{coef:.4f}', ha='center', va='bottom' if height >= 0 else 'top')
+                
+                # 添加零线
+                ax.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+                
+                # 设置图表标题和标签
+                ax.set_title('回归系数分析', fontsize=14)
+                ax.set_ylabel('系数值', fontsize=12)
+                
+                # 添加网格线
+                ax.grid(True, alpha=0.3, axis='y')
+                
+                # 调整布局
+                plt.tight_layout()
+                
+                # 显示图表
+                st.pyplot(fig)
+                
+                # 显示预测值与实际值的对比
+                fig, ax = plt.subplots(figsize=(10, 6))
+                
+                # 绘制散点图
+                ax.scatter(y, y_pred, alpha=0.7, s=60, c='blue', edgecolors='w', linewidth=0.5)
+                
+                # 添加完美预测线
+                min_val = min(y.min(), y_pred.min())
+                max_val = max(y.max(), y_pred.max())
+                ax.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='完美预测线')
+                
+                # 设置图表标题和标签
+                ax.set_title('预测值与实际值对比', fontsize=14)
+                ax.set_xlabel('实际收益率(%)', fontsize=12)
+                ax.set_ylabel('预测收益率(%)', fontsize=12)
+                
+                # 添加网格线
+                ax.grid(True, alpha=0.3)
+                
+                # 添加图例
+                ax.legend()
+                
+                # 调整布局
+                plt.tight_layout()
+                
+                # 显示图表
+                st.pyplot(fig)
+                
+                # 显示残差分析
+                residuals = y - y_pred
+                
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+                
+                # 残差直方图
+                ax1.hist(residuals, bins=20, edgecolor='black', alpha=0.7)
+                ax1.set_title('残差分布', fontsize=14)
+                ax1.set_xlabel('残差', fontsize=12)
+                ax1.set_ylabel('频数', fontsize=12)
+                ax1.grid(True, alpha=0.3)
+                
+                # 残差散点图
+                ax2.scatter(y_pred, residuals, alpha=0.7, s=60, c='blue', edgecolors='w', linewidth=0.5)
+                ax2.axhline(y=0, color='r', linestyle='--')
+                ax2.set_title('残差与预测值关系', fontsize=14)
+                ax2.set_xlabel('预测收益率(%)', fontsize=12)
+                ax2.set_ylabel('残差', fontsize=12)
+                ax2.grid(True, alpha=0.3)
+                
+                # 调整布局
+                plt.tight_layout()
+                
+                # 显示图表
+                st.pyplot(fig)
+                
+                # 显示残差统计
+                st.write('📊 残差分析：')
+                st.write(f'- 残差均值：{residuals.mean():.6f}')
+                st.write(f'- 残差标准差：{residuals.std():.6f}')
+                st.write(f'- 残差最小值：{residuals.min():.6f}')
+                st.write(f'- 残差最大值：{residuals.max():.6f}')
+                
+                # 检查残差是否接近正态分布
+                if abs(residuals.mean()) < 0.01:
+                    st.write('- 残差均值接近0，模型无偏')
                 else:
-                    st.write('❌ 情感得分对次日收益率的预测能力较弱')
-                
-                if r2_2 > r2:
-                    st.write('✅ 加入评论数量后，模型预测能力有所提升')
-                else:
-                    st.write('⚠️ 加入评论数量后，模型预测能力提升不明显')
+                    st.write('- 残差均值偏离0，模型可能存在偏差')
     except Exception as e:
-        st.error(f'进行回归分析时发生错误：{str(e)}')
+        st.error(f'回归分析时发生错误：{str(e)}')
         st.write('请检查数据格式或尝试调整参数。')
     
     # 典型评论展示
@@ -655,95 +805,80 @@ try:
                     st.write(f"{row['combined_text']}")
                     st.write(f"*发布时间: {row['post_publish_time'].strftime('%Y-%m-%d %H:%M')}*")
                     st.write("---")
+    except Exception as e:
+        st.error(f'显示典型评论时发生错误：{str(e)}')
+        st.write('请检查数据格式或尝试调整参数。')
+    
+    # 显示情感词典统计
+    st.subheader('情感词典统计')
+    
+    try:
+        # 加载情感词典
+        positive_words, negative_words = load_sentiment_dictionaries()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write(f"### 积极词典")
+            st.write(f"- 词典大小: {len(positive_words)} 个词语")
+            st.write("- 示例词语:")
+            # 显示前10个积极词语
+            for word in positive_words[:10]:
+                st.write(f"  - {word}")
+            if len(positive_words) > 10:
+                st.write(f"  - ... 还有 {len(positive_words)-10} 个词语")
+        
+        with col2:
+            st.write(f"### 消极词典")
+            st.write(f"- 词典大小: {len(negative_words)} 个词语")
+            st.write("- 示例词语:")
+            # 显示前10个消极词语
+            for word in negative_words[:10]:
+                st.write(f"  - {word}")
+            if len(negative_words) > 10:
+                st.write(f"  - ... 还有 {len(negative_words)-10} 个词语")
+        
+        # 分析评论中的情感词使用情况
+        if not filtered_comments.empty:
+            # 统计评论中出现的积极和消极词语
+            pos_word_counts = Counter()
+            neg_word_counts = Counter()
             
-            # 情感关键词分析
-            st.write("### 情感关键词分析")
+            for text in filtered_comments['combined_text']:
+                for word in positive_words:
+                    if word in text:
+                        pos_word_counts[word] += 1
+                for word in negative_words:
+                    if word in text:
+                        neg_word_counts[word] += 1
             
-            # 提取积极和消极评论中的关键词
-            positive_text = " ".join(positive_comments['combined_text'].tolist())
-            negative_text = " ".join(negative_comments['combined_text'].tolist())
-            
-            # 简单的关键词提取（基于词频）
-            from collections import Counter
-            import re
-            
-            # 中文分词简单处理（按字符分割）
-            def extract_keywords(text, top_n=10):
-                # 移除标点符号和数字
-                text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z]', ' ', text)
-                # 分割成单词
-                words = text.split()
-                # 过滤掉单字符和常见停用词
-                stop_words = ['的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这']
-                words = [word for word in words if len(word) > 1 and word not in stop_words]
-                # 统计词频
-                word_count = Counter(words)
-                return word_count.most_common(top_n)
-            
+            # 显示最常见的情感词
             col1, col2 = st.columns(2)
             
             with col1:
-                st.write("**积极评论关键词**")
-                pos_keywords = extract_keywords(positive_text)
-                for word, count in pos_keywords:
-                    st.write(f"- {word}: {count}次")
+                st.write("### 最常见的积极词语")
+                if pos_word_counts:
+                    for word, count in pos_word_counts.most_common(10):
+                        st.write(f"- {word}: {count} 次")
+                else:
+                    st.write("评论中未发现积极词语")
             
             with col2:
-                st.write("**消极评论关键词**")
-                neg_keywords = extract_keywords(negative_text)
-                for word, count in neg_keywords:
-                    st.write(f"- {word}: {count}次")
-            
-            # 情感随时间变化
-            st.write("### 情感随时间变化")
-            
-            # 按日期计算平均情感得分
-            daily_sentiment_trend = filtered_comments.groupby(filtered_comments['post_publish_time'].dt.date)['llm_sentiment_score'].mean()
-            
-            fig, ax = plt.subplots(figsize=(12, 6))
-            daily_sentiment_trend.plot(ax=ax, marker='o', linestyle='-', linewidth=2, markersize=5)
-            
-            # 添加零线
-            ax.axhline(y=0, color='red', linestyle='--', alpha=0.7)
-            
-            # 设置图表标题和标签
-            ax.set_title('每日平均情感得分变化趋势', fontsize=14)
-            ax.set_xlabel('日期', fontsize=12)
-            ax.set_ylabel('平均情感得分', fontsize=12)
-            
-            # 添加网格线
-            ax.grid(True, alpha=0.3)
-            
-            # 调整日期标签
-            plt.xticks(rotation=45, fontsize=10)
-            
-            # 调整布局
-            plt.tight_layout()
-            
-            # 显示图表
-            st.pyplot(fig)
-            
-            # 显示统计信息
-            avg_sentiment = daily_sentiment_trend.mean()
-            max_sentiment_date = daily_sentiment_trend.idxmax()
-            min_sentiment_date = daily_sentiment_trend.idxmin()
-            
-            st.write(f"📊 情感趋势统计：")
-            st.write(f"- 平均情感得分：{avg_sentiment:.4f}")
-            st.write(f"- 最积极日期：{max_sentiment_date}（得分：{daily_sentiment_trend[max_sentiment_date]:.4f}）")
-            st.write(f"- 最消极日期：{min_sentiment_date}（得分：{daily_sentiment_trend[min_sentiment_date]:.4f}）")
-            
+                st.write("### 最常见的消极词语")
+                if neg_word_counts:
+                    for word, count in neg_word_counts.most_common(10):
+                        st.write(f"- {word}: {count} 次")
+                else:
+                    st.write("评论中未发现消极词语")
     except Exception as e:
-        st.error(f'展示典型评论时发生错误：{str(e)}')
-        st.write('请检查数据格式或尝试调整参数。')
+        st.error(f'显示情感词典统计时发生错误：{str(e)}')
+        st.write('请检查词典文件是否存在或格式是否正确。')
 
 except Exception as e:
     st.error(f'应用程序运行时发生错误：{str(e)}')
-    st.write('请检查数据文件是否完整，或尝试调整参数。')
+    st.write('请检查数据文件是否存在或格式是否正确。')
 
 # 页脚
-st.markdown("---")
-st.markdown("### 关于")
-st.markdown("本应用基于东方财富股吧评论数据，使用情感分析技术分析投资者情绪与股票收益率之间的关系。")
-st.markdown("数据来源：东方财富股吧、股票价格数据")
-st.markdown("技术栈：Python、Streamlit、Pandas、Scikit-learn")
+st.markdown('---')
+st.markdown('**东方财富股吧评论情感分析应用**')
+st.markdown('基于Streamlit构建的情感分析与股票收益率关系研究工具')
