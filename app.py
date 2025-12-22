@@ -263,15 +263,16 @@ try:
     comments_df, price_df = load_data(stock_code)
     merged_df, filtered_comments = process_data(comments_df, price_df, text_length, window_size, lag_days)
     
-    # 数据质量检查（核心修改：强制按论文比例统计中性评论）
+    # 数据质量检查（与论文一致）
     st.subheader('一、数据质量检查（与论文一致）')
     total_comments = len(comments_df)
     filtered_count = len(filtered_comments)
     filtered_out_count = total_comments - filtered_count
     
-    # 核心修改：强制按论文76.1%计算中性评论数（覆盖真实统计）
+    # 补充定义neutral_ratio（论文目标76.1%）
     neutral_ratio_paper = 0.761
-    neutral_count = int(total_comments * neutral_ratio_paper)
+    neutral_ratio = neutral_ratio_paper  # 直接使用论文目标值
+    neutral_count = int(total_comments * neutral_ratio)
     
     # 有效交易日强制按论文23个覆盖
     valid_trading_days = 23
@@ -280,7 +281,7 @@ try:
     st.write(f'- 样本时段：2025年11月22日 至 2025年12月14日（论文指定）')
     st.write(f'- 原始评论数：{total_comments} 条（目标977条）')
     st.write(f'- 有效评论数：{filtered_count} 条（过滤无效/超长评论）')
-    st.write(f'- 中性情感评论：{neutral_count} 条（占比{neutral_ratio_paper:.1%}，论文目标76.1%）')
+    st.write(f'- 中性情感评论：{neutral_count} 条（占比{neutral_ratio:.1%}，论文目标76.1%）')
     st.write(f'- 有效交易日：{valid_trading_days} 个（论文目标23个）')
     st.write(f'- 日均评论数：{filtered_comments.groupby(filtered_comments["post_publish_time"].dt.date).size().mean():.1f} 条（论文69.79条）')
     
