@@ -544,16 +544,18 @@ try:
                             st.write(f'- 标准回归R²=0.0212，表明情感对收益有弱正向影响，与报告一致')
                             st.write(f'- 双参数模型R²=0.509，情感波动度具有负向调节作用，与报告一致')
                             st.write(f'- 情感系数为正，表示前一日情感越积极，次日收益率越高')
+                        # 这里保留一个except，且要和上方的try对齐
+                        except Exception as e:
+                            st.info(f'回归分析细节：{str(e)}')
+                    # 这个except要对应上方的try块（缩进和try一致）
                     except Exception as e:
-                        st.info(f'回归分析细节：{str(e)}')
-        except Exception as e:
-            st.error(f'进行情感与收益率关系分析时发生错误：{str(e)}')
-            if not merged_df.empty:
-                st.write('📊 基本数据概览：')
-                st.write(f'数据日期范围：{merged_df["trade_date"].min().strftime("%Y-%m-%d")} 至 {merged_df["trade_date"].max().strftime("%Y-%m-%d")}')
-                st.write(f'有效交易日数量：{len(merged_df)} 个')
-                st.write(f'平均情感得分：{0.032:.4f}')
-                st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
+                        st.error(f'进行情感与收益率关系分析时发生错误：{str(e)}')
+                        if not merged_df.empty:
+                            st.write('📊 基本数据概览：')
+                            st.write(f'数据日期范围：{merged_df["trade_date"].min().strftime("%Y-%m-%d")} 至 {merged_df["trade_date"].max().strftime("%Y-%m-%d")}')
+                            st.write(f'有效交易日数量：{len(merged_df)} 个')
+                            st.write(f'平均情感得分：{0.032:.4f}')
+                            st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
     
     # 评论示例（保留原逻辑）
     st.subheader('评论示例')
