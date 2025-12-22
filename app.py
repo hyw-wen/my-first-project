@@ -573,7 +573,4 @@ try:
                     st.write(f'⏱️ 情感滞后天数: {lag_days} 天（分析情感对未来 {lag_days} 天收益率的影响）')
                     st.write(f'🎲 LLM温度参数: {temperature}（影响模型生成的随机性，值越高生成内容越多样）')
                     st.info('💡 提示：调整任何参数后，应用将自动重新运行并更新所有分析结果。')
-                
-                    except Exception as e:
-                        st.error(f'发生错误: {e}')
-                        st.write('请检查数据文件是否存在或格式是否正确。')
+ 
