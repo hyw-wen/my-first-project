@@ -103,16 +103,20 @@ st.title('东方财富股吧评论情感分析')
 @st.cache_data
 def load_data(stock_code):
     # 加载评论和情感分析数据
-    # 优先使用更新后的情感分析结果文件
+    # 优先使用统一情感分析结果文件
+    unified_file = f"{stock_code}_sentiment_analysis_unified.csv"
     updated_file = f"{stock_code}_sentiment_analysis_updated.csv"
     original_file = f"{stock_code}_sentiment_analysis.csv"
     
-    if os.path.exists(updated_file):
+    if os.path.exists(unified_file):
+        comments_df = pd.read_csv(unified_file)
+        st.success(f"已加载统一情感分析结果（{len(comments_df)}条评论）")
+    elif os.path.exists(updated_file):
         comments_df = pd.read_csv(updated_file)
-        st.success(f"已加载改进的情感分析结果（{len(comments_df)}条评论）")
+        st.info(f"已加载改进的情感分析结果（{len(comments_df)}条评论）")
     else:
         comments_df = pd.read_csv(original_file)
-        st.info(f"已加载原始情感分析结果（{len(comments_df)}条评论）")
+        st.warning(f"已加载原始情感分析结果（{len(comments_df)}条评论）")
     
     comments_df['post_publish_time'] = pd.to_datetime(comments_df['post_publish_time'])
     
@@ -134,19 +138,25 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     invalid_pattern = r'(图片图片|转发转发|^[!！]{5,}$|^[?？]{5,}$|^\.{5,}$|^\s*$)'
     filtered_comments = filtered_comments[~filtered_comments['combined_text'].str.contains(invalid_pattern, na=False, regex=True)]
     
-    # 加载情感词典
-    positive_words, negative_words = load_sentiment_dictionaries()
-    
-    # 应用基于词典的情感分析
-    sentiment_results = filtered_comments['combined_text'].apply(
-        lambda x: lexicon_based_sentiment_analysis(x, positive_words, negative_words)
-    )
-    
-    # 将结果拆分为情感标签和得分列
-    filtered_comments['llm_sentiment_label'] = sentiment_results.str[0]
-    filtered_comments['llm_sentiment_score'] = sentiment_results.str[1]
-    filtered_comments['ensemble_sentiment_score'] = sentiment_results.str[1]
-    filtered_comments['lexicon_sentiment'] = sentiment_results.str[1]
+    # 检查是否已经包含统一情感分析结果
+    if 'lexicon_sentiment' in filtered_comments.columns and 'llm_sentiment_score' in filtered_comments.columns:
+        # 已有统一情感分析结果，直接使用
+        pass
+    else:
+        # 需要计算情感分析结果（向后兼容）
+        # 加载情感词典
+        positive_words, negative_words = load_sentiment_dictionaries()
+        
+        # 应用基于词典的情感分析
+        sentiment_results = filtered_comments['combined_text'].apply(
+            lambda x: lexicon_based_sentiment_analysis(x, positive_words, negative_words)
+        )
+        
+        # 将结果拆分为情感标签和得分列
+        filtered_comments['llm_sentiment_label'] = sentiment_results.str[0]
+        filtered_comments['llm_sentiment_score'] = sentiment_results.str[1]
+        filtered_comments['ensemble_sentiment_score'] = sentiment_results.str[1]
+        filtered_comments['lexicon_sentiment'] = sentiment_results.str[1]
     
     # 文本长度过滤
     filtered_comments['text_length'] = filtered_comments['combined_text'].str.len()
@@ -331,6 +341,65 @@ try:
     
     # 显示情感分析结果
     st.subheader('情感分析结果')
+    
+    # 添加情感分析统计表格
+    if 'lexicon_sentiment' in comments_df.columns and 'llm_sentiment_score' in comments_df.columns and 'ensemble_sentiment_score' in comments_df.columns:
+        st.write('### 情感分析方法比较')
+        
+        # 计算三种方法的统计指标
+        methods_stats = pd.DataFrame({
+            '方法': ['词典法', 'LLM法', '集成法'],
+            '平均情感得分': [
+                comments_df['lexicon_sentiment'].mean(),
+                comments_df['llm_sentiment_score'].mean(),
+                comments_df['ensemble_sentiment_score'].mean()
+            ],
+            '标准差': [
+                comments_df['lexicon_sentiment'].std(),
+                comments_df['llm_sentiment_score'].std(),
+                comments_df['ensemble_sentiment_score'].std()
+            ]
+        })
+        
+        # 计算积极、中性、消极比例
+        if 'llm_sentiment_label' in comments_df.columns:
+            sentiment_counts = comments_df['llm_sentiment_label'].value_counts()
+            total_comments = len(comments_df)
+            
+            # 词典法比例（基于得分计算）
+            lexicon_positive = (comments_df['lexicon_sentiment'] > 0.1).sum()
+            lexicon_negative = (comments_df['lexicon_sentiment'] < -0.1).sum()
+            lexicon_neutral = total_comments - lexicon_positive - lexicon_negative
+            
+            # LLM法比例（基于标签计算）
+            llm_positive = sentiment_counts.get('积极', 0)
+            llm_negative = sentiment_counts.get('消极', 0)
+            llm_neutral = sentiment_counts.get('中性', 0)
+            
+            # 集成法比例（基于得分计算）
+            ensemble_positive = (comments_df['ensemble_sentiment_score'] > 0.1).sum()
+            ensemble_negative = (comments_df['ensemble_sentiment_score'] < -0.1).sum()
+            ensemble_neutral = total_comments - ensemble_positive - ensemble_negative
+            
+            # 添加比例列
+            methods_stats['积极比例'] = [
+                f"{lexicon_positive/total_comments*100:.2f}%",
+                f"{llm_positive/total_comments*100:.2f}%",
+                f"{ensemble_positive/total_comments*100:.2f}%"
+            ]
+            methods_stats['中性比例'] = [
+                f"{lexicon_neutral/total_comments*100:.2f}%",
+                f"{llm_neutral/total_comments*100:.2f}%",
+                f"{ensemble_neutral/total_comments*100:.2f}%"
+            ]
+            methods_stats['消极比例'] = [
+                f"{lexicon_negative/total_comments*100:.2f}%",
+                f"{llm_negative/total_comments*100:.2f}%",
+                f"{ensemble_negative/total_comments*100:.2f}%"
+            ]
+        
+        # 显示统计表格
+        st.table(methods_stats.set_index('方法'))
     
     col1, col2 = st.columns(2)
     
