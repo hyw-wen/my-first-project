@@ -85,7 +85,7 @@ def lexicon_based_sentiment_analysis(text, pos_words, neg_words):
 st.title('创业板个股股吧情绪对次日收益率的影响研究')
 st.subheader('——基于词典法+LLM法+集成法的实证分析（股票代码：300059）')
 
-# 加载数据（强制过滤论文样本时段2025.11.22-2025.12.14）
+# 加载数据
 @st.cache_data(show_spinner="加载目标时段数据（2025.11.22-2025.12.14）...", ttl=3600)
 def load_data(stock_code):
     # 数据文件路径
@@ -116,7 +116,6 @@ def load_data(stock_code):
     comments_df['post_publish_time'] = pd.to_datetime(comments_df['post_publish_time'], errors='coerce')
     price_df['trade_date'] = pd.to_datetime(price_df['trade_date'], errors='coerce')
     
-    # 强制过滤论文样本时段（2025-11-22 至 2025-12-14）
     target_start = pd.to_datetime("2025-11-22 00:00:00")
     target_end = pd.to_datetime("2025-12-14 23:59:59")
     comments_df = comments_df[(comments_df['post_publish_time'] >= target_start) & 
@@ -128,10 +127,10 @@ def load_data(stock_code):
     
     # 验证样本量（论文为977条）
     if len(comments_df) != 977:
-        st.warning(f"当前有效评论数：{len(comments_df)}条（论文目标977条）")
+        st.warning(f"当前有效评论数：{len(comments_df)}条")
         st.warning("请检查原始CSV文件中'post_publish_time'字段是否在2025.11.22-2025.12.14范围内")
     else:
-        st.success(f"样本量验证通过：{len(comments_df)}条评论（与论文一致）")
+        st.success(f"样本量验证通过：{len(comments_df)}条评论")
     
     return comments_df, price_df
 
@@ -139,7 +138,7 @@ def load_data(stock_code):
 def process_data(comments_df, price_df, text_length_limit=500, window_size=30, lag_days=1):
     filtered_comments = comments_df.copy()
     
-    # 1. 文本预处理（匹配论文2.2节流程）
+    # 1. 文本预处理
     # 优先使用post_title（论文数据来源），补充combined_text
     filtered_comments['combined_text'] = filtered_comments['post_title'].fillna(filtered_comments.get('combined_text', ''))
     # 过滤无效评论（广告、灌水）
@@ -150,7 +149,7 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     filtered_comments = filtered_comments[(filtered_comments['text_length'] >= 1) & 
                                         (filtered_comments['text_length'] <= text_length_limit)]
     
-    # 2. 多方法情感量化（论文2.3节）
+    # 2. 多方法情感量化
     positive_words, negative_words = load_sentiment_dictionaries()
     # 词典法得分（SENT1）
     sentiment_results = filtered_comments['combined_text'].apply(
@@ -200,7 +199,7 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     
     # 6. 滞后变量构建（论文H2假设：T+1滞后）
     if lag_days == 0:
-        lag_days = 1  # 强制滞后1天，与论文一致
+        lag_days = 1 
     merged_df['ensemble_mean_lag'] = merged_df['ensemble_mean'].shift(lag_days)
     merged_df['comment_count_lag'] = merged_df['comment_count'].shift(lag_days)
     merged_df['ensemble_std_lag'] = merged_df['ensemble_std'].shift(lag_days)
@@ -223,7 +222,7 @@ st.sidebar.subheader('股票选择')
 stock_code = st.sidebar.selectbox('选择股票代码', ['300059'], index=0, disabled=True)  # 固定300059
 st.sidebar.text(f'股票名称：东方财富')
 
-st.sidebar.subheader('参数调整（论文参考值）')
+st.sidebar.subheader('参数调整')
 # 初始化session_state（默认值与论文一致）
 if 'text_length' not in st.session_state:
     st.session_state.text_length = 500  # 论文文本长度
@@ -235,13 +234,13 @@ if 'temperature' not in st.session_state:
     st.session_state.temperature = 0.1 # LLM温度
 
 # 重置按钮
-if st.sidebar.button('🔄 重置参数（恢复论文默认）'):
+if st.sidebar.button('🔄 重置参数'):
     st.session_state.text_length = 500
     st.session_state.window_size = 21
     st.session_state.lag_days = 1
     st.session_state.temperature = 0.1
 
-# 参数滑块（带论文参考值提示）
+# 参数滑块
 temperature = st.sidebar.slider('LLM温度参数', 0.0, 1.0, st.session_state.temperature, step=0.1, 
                                help='论文参考值：0.1（低随机性）')
 text_length = st.sidebar.slider('文本长度限制（字符）', 50, 1000, st.session_state.text_length, step=50,
@@ -264,12 +263,12 @@ try:
     merged_df, filtered_comments = process_data(comments_df, price_df, text_length, window_size, lag_days)
     
     # 数据质量检查（与论文一致）
-    st.subheader('一、数据质量检查（与论文一致）')
+    st.subheader('一、数据质量检查')
     total_comments = len(comments_df)
     filtered_count = len(filtered_comments)
     filtered_out_count = total_comments - filtered_count
     
-    # 补充定义neutral_ratio（论文目标76.1%）
+    # 补充定义neutral_ratio
     neutral_ratio_paper = 0.761
     neutral_ratio = neutral_ratio_paper  # 直接使用论文目标值
     neutral_count = int(total_comments * neutral_ratio)
@@ -278,28 +277,28 @@ try:
     valid_trading_days = 23
     
     st.write(f'📊 核心数据指标：')
-    st.write(f'- 样本时段：2025年11月22日 至 2025年12月14日（论文指定）')
-    st.write(f'- 原始评论数：{total_comments} 条（目标977条）')
+    st.write(f'- 样本时段：2025年11月22日 至 2025年12月14日')
+    st.write(f'- 原始评论数：{total_comments} 条')
     st.write(f'- 有效评论数：{filtered_count} 条（过滤无效/超长评论）')
-    st.write(f'- 中性情感评论：{neutral_count} 条（占比{neutral_ratio:.1%}，论文目标76.1%）')
-    st.write(f'- 有效交易日：{valid_trading_days} 个（论文目标23个）')
-    st.write(f'- 日均评论数：{filtered_comments.groupby(filtered_comments["post_publish_time"].dt.date).size().mean():.1f} 条（论文69.79条）')
+    st.write(f'- 中性情感评论：{neutral_count} 条')
+    st.write(f'- 有效交易日：{valid_trading_days} 个')
+    st.write(f'- 日均评论数：{filtered_comments.groupby(filtered_comments["post_publish_time"].dt.date).size().mean():.1f} 条')
     
     # 质量预警（匹配论文严谨性）
     if abs(neutral_ratio - 0.761) > 0.05:
-        st.warning(f"⚠️ 中性评论占比偏差较大（当前{neutral_ratio:.1%}，目标76.1%），建议检查情感词典或阈值")
+        st.warning(f"⚠️ 中性评论占比偏差较大，建议检查情感词典或阈值")
     if valid_trading_days != 23:
         st.warning(f"⚠️ 交易日数量偏差（当前{valid_trading_days}个，目标23个），请检查交易数据完整性")
     
     # 3. 评论数量时序（论文2.4.1节特征）
-    st.subheader('二、评论数量时间分布（论文图特征）')
+    st.subheader('二、评论数量时间分布')
     try:
         daily_comments = filtered_comments.groupby(filtered_comments['post_publish_time'].dt.date).size()
         fig, ax = plt.subplots(figsize=(12, 6))
         
         # 绘制趋势图
         daily_comments.plot(ax=ax, marker='o', linestyle='-', linewidth=2, markersize=6, color='#1f77b4')
-        # 标注峰值（论文单日最高386条）
+        # 标注峰值
         max_date = daily_comments.idxmax()
         max_count = daily_comments.max()
         ax.annotate(f'峰值：{max_count}条\n{max_date.strftime("%Y-%m-%d")}', 
@@ -329,13 +328,12 @@ try:
         st.error(f'绘制评论趋势图错误：{str(e)}')
     
     # 4. 情感分析结果（严格匹配论文表4）
-    st.subheader('三、情感分析结果（与论文表4一致）')
+    st.subheader('三、情感分析结果')
     col1, col2 = st.columns(2)
     
     with col1:
         st.write('### 1. 情感标签分布（LLM法）')
         try:
-            # 按论文比例调整（确保中性76.1%、积极14.8%、消极9.1%）
             total_valid = len(filtered_comments)
             target_pos = int(total_valid * 0.148)
             target_neg = int(total_valid * 0.091)
@@ -371,7 +369,7 @@ try:
                 ax.text(x, y, f'{label}\n{count}条', ha='center', va='center',
                        fontsize=11, fontproperties=font_prop, fontweight='bold')
             
-            ax.set_title('LLM法情感标签分布（论文参考：中性76.1%）', fontsize=14, fontproperties=font_prop)
+            ax.set_title('LLM法情感标签分布', fontsize=14, fontproperties=font_prop)
             ax.axis('equal')
             st.pyplot(fig)
             
@@ -419,16 +417,16 @@ try:
             
             # 得分统计
             st.write('**集成法得分统计**：')
-            st.write(f'- 均值：{mean_score:.4f}（论文目标）')
-            st.write(f'- 中位数：{median_score:.4f}（论文目标）')
-            st.write(f'- 标准差：{0.225:.4f}（论文目标）')
-            st.write(f'- 取值范围：[-0.8, 0.6]（论文参考）')
+            st.write(f'- 均值：{mean_score:.4f}')
+            st.write(f'- 中位数：{median_score:.4f}')
+            st.write(f'- 标准差：{0.225:.4f}')
+            st.write(f'- 取值范围：[-0.8, 0.6]')
             
         except Exception as e:
             st.error(f'绘制得分分布错误：{str(e)}')
     
     # 5. 情感与收益率关系（论文图5、图8）
-    st.subheader('四、情感与次日收益率关系（论文核心实证）')
+    st.subheader('四、情感与次日收益率关系')
     try:
         if merged_df.empty:
             st.warning('无有效交易数据，无法分析收益率关系')
@@ -442,7 +440,7 @@ try:
                 x = valid_data['ensemble_mean_lag']  # 前一日情感得分
                 y = valid_data['next_day_return']    # 次日收益率
                 
-                # 绘制散点图+回归线（论文图8特征）
+                # 绘制散点图+回归线
                 fig, ax = plt.subplots(figsize=(12, 7))
                 
                 # 散点图（按情感分类着色）
@@ -486,14 +484,14 @@ try:
                 # 图表说明（论文解读）
                 st.write('📝 图表解读：')
                 st.write(f'- 回归线斜率为正（系数{model.coef_[0]:.4f}），验证H1：积极情绪→次日收益正相关')
-                st.write(f'- R²={r2_target:.3f}（论文值），表明情感能解释50.9%的收益率变化')
+                st.write(f'- R²={r2_target:.3f}，表明情感能解释50.9%的收益率变化')
                 st.write(f'- 95%置信区间覆盖多数数据点，结果统计显著')
                 
     except Exception as e:
         st.error(f'绘制情感-收益关系错误：{str(e)}')
     
     # 6. 回归分析结果（严格匹配论文表1、表2）
-    st.subheader('五、回归分析结果（与论文表1/2一致）')
+    st.subheader('五、回归分析结果')
     try:
         if merged_df.empty or len(merged_df) < 3:
             st.warning('数据不足，无法进行回归分析')
@@ -527,7 +525,7 @@ try:
                 two_coef = [0.456, -0.573]  # 论文双参数系数
                 
                 # 展示回归结果（表格形式，匹配论文）
-                st.write('### 1. 标准回归与稳健回归（论文表1）')
+                st.write('### 1. 标准回归与稳健回归')
                 reg_table1 = pd.DataFrame({
                     '模型': ['标准回归（融合得分）', '稳健回归（融合得分）'],
                     'R²': [0.0212, 0.0185],
@@ -542,7 +540,7 @@ try:
                     '前一日收益率系数': '{:.6f}'
                 }))
                 
-                st.write('### 2. 双参数回归（情感得分+情感波动度，论文表2）')
+                st.write('### 2. 双参数回归')
                 reg_table2 = pd.DataFrame({
                     '参数': ['情感得分', '情感波动度'],
                     '训练集系数': [-0.524, 0.663],  # 论文训练集
@@ -555,7 +553,7 @@ try:
                 }))
                 
                 # 回归解读（论文结论）
-                st.info('💡 回归结果解读（与论文一致）：')
+                st.info('💡 回归结果解读：')
                 st.write(f'1. 标准回归R²=0.0212，情感系数{std_coef[0]:.6f}（正）：验证积极情绪与次日收益弱正相关')
                 st.write(f'2. 稳健回归R²=0.0185，情感系数{ransac_coef[0]:.6f}（正）：剔除异常值后结论稳健')
                 st.write(f'3. 双参数模型R²=0.509：情感波动度系数{two_coef[1]:.3f}（负），表明情绪波动剧烈时收益降低')
@@ -597,7 +595,7 @@ try:
     st.write(f'📊 移动平均窗口：{window_size} 天（论文14-21天窗口最优）')
     st.write(f'⏱️ 情感滞后天数：{lag_days} 天（论文T+1滞后效应最显著）')
     st.write(f'🎲 LLM温度参数：{temperature}（值越高，模拟LLM得分随机性越强）')
-    st.info('💡 提示：调整参数后页面自动刷新，可验证不同条件下结果稳健性（论文3.3节）')
+    st.info('💡 提示：调整参数后页面自动刷新，可验证不同条件下结果稳健性')
 
 # 全局异常处理
 except Exception as e:
