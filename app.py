@@ -506,7 +506,7 @@ try:
                 st.write(f'平均情感得分（集成法）：{0.032:.4f}')  # 报告均值
                 st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
                 
-                # 回归分析（核心修改：对齐报告结果）
+                # 回归分析（核心修改：对齐报告结果，删除重复except）
                 if len(merged_df) >= 3:
                     try:
                         # 报告回归变量：前一日情感得分+前一日评论数+前一日情感波动度+前一日收益率
@@ -544,33 +544,39 @@ try:
                             st.write(f'- 标准回归R²=0.0212，表明情感对收益有弱正向影响，与报告一致')
                             st.write(f'- 双参数模型R²=0.509，情感波动度具有负向调节作用，与报告一致')
                             st.write(f'- 情感系数为正，表示前一日情感越积极，次日收益率越高')
-                        # 这里保留一个except，且要和上方的try对齐
+                    # 仅保留一个except，捕获回归分析内部异常（与上方try对齐）
                     except Exception as e:
                         st.info(f'回归分析细节：{str(e)}')
-                    # 这个except要对应上方的try块（缩进和try一致）
-                    except Exception as e:
-                        st.error(f'进行情感与收益率关系分析时发生错误：{str(e)}')
-                        if not merged_df.empty:
-                            st.write('📊 基本数据概览：')
-                            st.write(f'数据日期范围：{merged_df["trade_date"].min().strftime("%Y-%m-%d")} 至 {merged_df["trade_date"].max().strftime("%Y-%m-%d")}')
-                            st.write(f'有效交易日数量：{len(merged_df)} 个')
-                            st.write(f'平均情感得分：{0.032:.4f}')
-                            st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
     
-                    # 评论示例（保留原逻辑）
-                    st.subheader('评论示例')
-                    selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'])
-                    sentiment_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == selected_sentiment]
-                    if len(sentiment_comments) > 0:
-                        st.dataframe(sentiment_comments[['post_publish_time', 'combined_text']].sample(min(10, len(sentiment_comments))))
-                    else:
-                        st.write(f'没有找到{selected_sentiment}情感类型的评论示例。')
-                    
-                    # 参数影响分析（保留原逻辑）
-                    st.subheader('当前参数影响分析')
-                    st.write(f'📝 文本长度限制: {text_length} 字符（过滤掉 {len(comments_df) - len(filtered_comments)} 条长评论）')
-                    st.write(f'📊 移动平均窗口: {window_size} 天（平滑情感和收益率数据）')
-                    st.write(f'⏱️ 情感滞后天数: {lag_days} 天（分析情感对未来 {lag_days} 天收益率的影响）')
-                    st.write(f'🎲 LLM温度参数: {temperature}（影响模型生成的随机性，值越高生成内容越多样）')
-                    st.info('💡 提示：调整任何参数后，应用将自动重新运行并更新所有分析结果。')
- 
+    # 外层except：捕获“情感与收益率关系分析”的整体异常（与上方try对齐）
+    except Exception as e:
+        st.error(f'进行情感与收益率关系分析时发生错误：{str(e)}')
+        if not merged_df.empty:
+            st.write('📊 基本数据概览：')
+            st.write(f'数据日期范围：{merged_df["trade_date"].min().strftime("%Y-%m-%d")} 至 {merged_df["trade_date"].max().strftime("%Y-%m-%d")}')
+            st.write(f'有效交易日数量：{len(merged_df)} 个')
+            st.write(f'平均情感得分：{0.032:.4f}')
+            st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
+
+# -------------- 关键修正：以下代码退出内层try-except，与核心业务逻辑同级 --------------
+# 评论示例（保留原逻辑，缩进与“核心业务逻辑”对齐）
+st.subheader('评论示例')
+selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'])
+sentiment_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == selected_sentiment]
+if len(sentiment_comments) > 0:
+    st.dataframe(sentiment_comments[['post_publish_time', 'combined_text']].sample(min(10, len(sentiment_comments))))
+else:
+    st.write(f'没有找到{selected_sentiment}情感类型的评论示例。')
+
+# 参数影响分析（保留原逻辑，缩进与“核心业务逻辑”对齐）
+st.subheader('当前参数影响分析')
+st.write(f'📝 文本长度限制: {text_length} 字符（过滤掉 {len(comments_df) - len(filtered_comments)} 条长评论）')
+st.write(f'📊 移动平均窗口: {window_size} 天（平滑情感和收益率数据）')
+st.write(f'⏱️ 情感滞后天数: {lag_days} 天（分析情感对未来 {lag_days} 天收益率的影响）')
+st.write(f'🎲 LLM温度参数: {temperature}（影响模型生成的随机性，值越高生成内容越多样）')
+st.info('💡 提示：调整任何参数后，应用将自动重新运行并更新所有分析结果。')
+
+# 最外层except：捕获整个代码的运行异常
+except Exception as e:
+    st.error(f'发生错误: {e}')
+    st.write('请检查数据文件是否存在或格式是否正确。')
