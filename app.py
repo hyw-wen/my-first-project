@@ -557,23 +557,23 @@ try:
                             st.write(f'平均情感得分：{0.032:.4f}')
                             st.write(f'平均次日收益率：{merged_df["next_day_return"].mean():.4f}%')
     
-    # 评论示例（保留原逻辑）
-    st.subheader('评论示例')
-    selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'])
-    sentiment_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == selected_sentiment]
-    if len(sentiment_comments) > 0:
-        st.dataframe(sentiment_comments[['post_publish_time', 'combined_text']].sample(min(10, len(sentiment_comments))))
-    else:
-        st.write(f'没有找到{selected_sentiment}情感类型的评论示例。')
-    
-    # 参数影响分析（保留原逻辑）
-    st.subheader('当前参数影响分析')
-    st.write(f'📝 文本长度限制: {text_length} 字符（过滤掉 {len(comments_df) - len(filtered_comments)} 条长评论）')
-    st.write(f'📊 移动平均窗口: {window_size} 天（平滑情感和收益率数据）')
-    st.write(f'⏱️ 情感滞后天数: {lag_days} 天（分析情感对未来 {lag_days} 天收益率的影响）')
-    st.write(f'🎲 LLM温度参数: {temperature}（影响模型生成的随机性，值越高生成内容越多样）')
-    st.info('💡 提示：调整任何参数后，应用将自动重新运行并更新所有分析结果。')
-
-except Exception as e:
-    st.error(f'发生错误: {e}')
-    st.write('请检查数据文件是否存在或格式是否正确。')
+                    # 评论示例（保留原逻辑）
+                    st.subheader('评论示例')
+                    selected_sentiment = st.selectbox('选择情感类型', ['积极', '中性', '消极'])
+                    sentiment_comments = filtered_comments[filtered_comments['llm_sentiment_label'] == selected_sentiment]
+                    if len(sentiment_comments) > 0:
+                        st.dataframe(sentiment_comments[['post_publish_time', 'combined_text']].sample(min(10, len(sentiment_comments))))
+                    else:
+                        st.write(f'没有找到{selected_sentiment}情感类型的评论示例。')
+                    
+                    # 参数影响分析（保留原逻辑）
+                    st.subheader('当前参数影响分析')
+                    st.write(f'📝 文本长度限制: {text_length} 字符（过滤掉 {len(comments_df) - len(filtered_comments)} 条长评论）')
+                    st.write(f'📊 移动平均窗口: {window_size} 天（平滑情感和收益率数据）')
+                    st.write(f'⏱️ 情感滞后天数: {lag_days} 天（分析情感对未来 {lag_days} 天收益率的影响）')
+                    st.write(f'🎲 LLM温度参数: {temperature}（影响模型生成的随机性，值越高生成内容越多样）')
+                    st.info('💡 提示：调整任何参数后，应用将自动重新运行并更新所有分析结果。')
+                
+                    except Exception as e:
+                        st.error(f'发生错误: {e}')
+                        st.write('请检查数据文件是否存在或格式是否正确。')
