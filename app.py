@@ -141,7 +141,23 @@ def process_data(comments_df, price_df, text_length_limit=500, window_size=30, l
     # 检查是否已经包含统一情感分析结果
     if 'lexicon_sentiment' in filtered_comments.columns and 'llm_sentiment_score' in filtered_comments.columns:
         # 已有统一情感分析结果，直接使用
-        pass
+        # 确保所有必要的列都存在
+        if 'ensemble_sentiment_score' not in filtered_comments.columns:
+            # 如果没有集成法结果，使用LLM法结果
+            filtered_comments['ensemble_sentiment_score'] = filtered_comments['llm_sentiment_score']
+        
+        # 确保情感标签列存在
+        if 'llm_sentiment_label' not in filtered_comments.columns:
+            # 如果没有情感标签，根据得分生成
+            def score_to_label(score):
+                if score > 0.1:
+                    return '积极'
+                elif score < -0.1:
+                    return '消极'
+                else:
+                    return '中性'
+            
+            filtered_comments['llm_sentiment_label'] = filtered_comments['llm_sentiment_score'].apply(score_to_label)
     else:
         # 需要计算情感分析结果（向后兼容）
         # 加载情感词典
