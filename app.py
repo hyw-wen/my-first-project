@@ -545,8 +545,8 @@ try:
                             st.write(f'- 双参数模型R²=0.509，情感波动度具有负向调节作用，与报告一致')
                             st.write(f'- 情感系数为正，表示前一日情感越积极，次日收益率越高')
                         # 这里保留一个except，且要和上方的try对齐
-                        except Exception as e:
-                            st.info(f'回归分析细节：{str(e)}')
+                    except Exception as e:
+                        st.info(f'回归分析细节：{str(e)}')
                     # 这个except要对应上方的try块（缩进和try一致）
                     except Exception as e:
                         st.error(f'进行情感与收益率关系分析时发生错误：{str(e)}')
