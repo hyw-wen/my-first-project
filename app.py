@@ -77,13 +77,13 @@ def process_data(comments_df, price_df, lag_days=1):
     return merged_df, filtered_comments
 
 
-# 绘制情感饼图
 def plot_sentiment_pie(sentiment_counts):
     fig, ax = plt.subplots(figsize=(8, 6))
     colors = ['#4caf50' if lbl == '积极' else '#ff9800' if lbl == '中性' else '#f44336' for lbl in sentiment_counts.index]
     explode = [0.1 if lbl in ['积极', '消极'] else 0 for lbl in sentiment_counts.index]
     
-    patches, _ = ax.pie(
+    # 改为接收3个值（忽略texts）
+    patches, texts, _ = ax.pie(
         sentiment_counts.values,
         startangle=90,
         colors=colors,
